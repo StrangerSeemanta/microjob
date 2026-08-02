@@ -1,5 +1,5 @@
 
-
+"use client"  ;
 import Link from "next/link";
 import { Show, SignInButton } from "@clerk/nextjs";
 import UserDashboard from "./UserDashboard";

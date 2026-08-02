@@ -1,4 +1,6 @@
 
+"use client";
+
 import { SignOutButton, UserAvatar, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import React from "react";
@@ -23,6 +25,7 @@ function UserDashboard() {
               <p className="text-sm text-gray-300">
                 {user.emailAddresses[0].emailAddress}
               </p>
+
               <p className="text-lg text-yellow-300 p-3 border-2 border-yellow-300 rounded-lg my-3">
                 Role: {role}
               </p>
