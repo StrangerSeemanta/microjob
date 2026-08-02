@@ -1,6 +1,8 @@
+
+
 import Link from "next/link";
-import { Show, SignInButton, UserButton, UserProfile } from "@clerk/nextjs";
-import UserDashboard from "@/pages/UserDashboard";
+import { Show, SignInButton } from "@clerk/nextjs";
+import UserDashboard from "./UserDashboard";
 
 function CreateAccountBtn() {
   return (
