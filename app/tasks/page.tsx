@@ -1,8 +1,11 @@
 import React from 'react'
+import Tasks from './Tasks';
 
 function page() {
   return (
-    <div>page</div>
+    <div>
+      {<Tasks />}
+    </div>
   )
 }
 
