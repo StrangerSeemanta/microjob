@@ -73,8 +73,8 @@ export default function WithdrawPage() {
       return;
     }
 
-    if (value < 50) {
-      setMessage("Minimum withdrawal amount is 50.");
+    if (value < 20) {
+      setMessage("Minimum withdrawal amount is 20.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function WithdrawPage() {
 
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-indigo-100 px-4 py-2 text-sm font-bold text-indigo-700">
-              Min: {formatCurrency(100)}
+              Min: {formatCurrency(20)}
             </div>
 
             <button
@@ -196,7 +196,7 @@ export default function WithdrawPage() {
           className="mb-8 rounded-xl border bg-slate-50 p-5"
         >
           <label className="mb-2 block text-sm font-medium text-slate-600">
-            Withdrawal Amount (Minimum 50)
+            Withdrawal Amount (Minimum 20)
           </label>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -205,7 +205,7 @@ export default function WithdrawPage() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="50"
+              placeholder="20"
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             />
             <select
@@ -215,7 +215,7 @@ export default function WithdrawPage() {
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             >
               <option key={"bkash"}>Bkash</option>
-              <option key={"nogod"}>Nogod</option>
+              <option key={"nogod"}>Nagod</option>
               <option key={"rocket"}>Rocket</option>
               <option key={"mobile"}>Mobile Recharge</option>{" "}
               <option key={"binance"}>Binance Pay</option>
