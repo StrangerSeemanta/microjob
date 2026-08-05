@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     //---------------------------------------
 
     const withdrawal = await WithdrawalRequest.create({
-      userId: user._id,
+      userId: user._id.toString(),
       clerkId,
 
       amount,
