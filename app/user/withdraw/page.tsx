@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardLoader from "@/components/DashboardLoader";
+import Footer from "@/components/Footer";
 import { getMyWithdrawals, requestWithdraw } from "@/lib/api/withdraw";
 import { UserDataType } from "@/types/UserData";
 import { formatCurrency } from "@/utils/formatCurrency";
@@ -255,7 +256,7 @@ export default function WithdrawPage() {
               No withdrawal requests found.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border">
+            <div className="overflow-auto rounded-xl border">
               <table className="w-full">
                 <thead className="bg-slate-100">
                   <tr>
@@ -311,6 +312,7 @@ export default function WithdrawPage() {
             </div>
           )}
         </div>
+        <Footer />
       </section>
     </main>
   );

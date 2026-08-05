@@ -9,6 +9,7 @@ import { Copy, CreditCard } from "lucide-react";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { toast } from "./ui/toast";
 import { addPhoneNumber } from "@/app/actions/addPhone";
+import Footer from "./Footer";
 
 function UserDashboard() {
   const [loadingUser, setLoadingUser] = useState(true);
@@ -165,7 +166,7 @@ function UserDashboard() {
       setSubmitPhone(false);
     }
   };
-  if (!currentUser.phone ) {
+  if (!currentUser.phone) {
     return (
       <>
         <form action={handleSubmitPhone}>
@@ -404,6 +405,9 @@ function UserDashboard() {
             </span>
           </Link>
         </div>
+
+        {/* footer */}
+        <Footer />
       </div>
     </div>
   );
