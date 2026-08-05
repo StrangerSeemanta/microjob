@@ -4,7 +4,6 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import type { Withdrawal } from "../hooks/useWithdrawals";
 import type { UseWithdrawalsReturn } from "../hooks/useWithdrawals";
 import { useEffect, useState } from "react";
-import { UserDataType } from "@/types/UserData";
 import { Loader } from "lucide-react";
 import { fetchUserByClerkId } from "@/app/actions/fetchUserById";
 import Image from "next/image";
