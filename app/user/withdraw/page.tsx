@@ -19,7 +19,7 @@ type WithdrawLog = {
 export default function WithdrawPage() {
   const [currentUser, setCurrentUser] = useState<UserDataType | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-
+  const [minimumPayout, setMinPayout] = useState(100);
   const [logs, setLogs] = useState<WithdrawLog[]>([]);
 
   const [amount, setAmount] = useState("");
@@ -71,9 +71,9 @@ export default function WithdrawPage() {
       setMessage("Please enter a valid amount.");
       return;
     }
-
-    if (value < 100) {
-      setMessage("Minimum withdrawal amount is ৳100.");
+    const minpay = paymentMethod === "mobile_recharge" ? 50 : 100;
+    if (value < minpay) {
+      setMessage(`Minimum withdrawal amount is ${}`);
       return;
     }
 
@@ -195,7 +195,7 @@ export default function WithdrawPage() {
           className="mb-8 rounded-xl border bg-slate-50 p-5"
         >
           <label className="mb-2 block text-sm font-medium text-slate-600">
-            Withdrawal Amount (Minimum ৳100)
+            Withdrawal Amount (Minimum {formatCurrency(minimumPayout)})
           </label>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -210,12 +210,18 @@ export default function WithdrawPage() {
             <select
               required
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={(e) => {
+                setPaymentMethod(e.target.value);
+                if (paymentMethod === "mobile_recharge") {
+                  setMinPayout(50);
+                }
+              }}
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             >
               <option key={"bkash"}>Bkash</option>
               <option key={"nogod"}>Nogod</option>
               <option key={"rocket"}>Rocket</option>
+              <option key={"mobile_recharge"}>Mobile Recharge</option>
             </select>
             <input
               type="text"
