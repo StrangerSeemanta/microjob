@@ -73,8 +73,8 @@ export default function WithdrawPage() {
       return;
     }
 
-    if (value < 100) {
-      setMessage("Minimum withdrawal amount is ৳100.");
+    if (value < 50) {
+      setMessage("Minimum withdrawal amount is 50.");
       return;
     }
 
@@ -196,7 +196,7 @@ export default function WithdrawPage() {
           className="mb-8 rounded-xl border bg-slate-50 p-5"
         >
           <label className="mb-2 block text-sm font-medium text-slate-600">
-            Withdrawal Amount (Minimum ৳100)
+            Withdrawal Amount (Minimum 50)
           </label>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -205,7 +205,7 @@ export default function WithdrawPage() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="100"
+              placeholder="50"
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             />
             <select
@@ -217,7 +217,8 @@ export default function WithdrawPage() {
               <option key={"bkash"}>Bkash</option>
               <option key={"nogod"}>Nogod</option>
               <option key={"rocket"}>Rocket</option>
-              <option key={"mobile"}>Mobile Recharge</option>
+              <option key={"mobile"}>Mobile Recharge</option>{" "}
+              <option key={"binance"}>Binance Pay</option>
             </select>
             <input
               type="text"
