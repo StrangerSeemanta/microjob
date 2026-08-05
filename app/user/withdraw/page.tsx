@@ -215,7 +215,7 @@ export default function WithdrawPage() {
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             >
               <option key={"bkash"}>Bkash</option>
-              <option key={"nogod"}>Nagod</option>
+              <option key={"nogod"}>Nagad</option>
               <option key={"rocket"}>Rocket</option>
               <option key={"mobile"}>Mobile Recharge</option>{" "}
               <option key={"binance"}>Binance Pay</option>
