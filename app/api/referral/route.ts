@@ -4,7 +4,7 @@ import User from "@/models/User";
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const REFERRAL_REWARD = 50;
+const REFERRAL_REWARD = 3;
 
 export async function POST(request: NextRequest) {
   try {
@@ -119,9 +119,7 @@ export async function POST(request: NextRequest) {
         _id: currentUser._id,
       },
       {
-        $inc: {
-          balance: REFERRAL_REWARD,
-        },
+        
 
         $set: {
           referredBy: referrer.referralId,
