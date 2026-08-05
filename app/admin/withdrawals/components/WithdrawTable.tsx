@@ -68,7 +68,7 @@ export default function WithdrawTable({ withdraw }: Props) {
           <tbody>
             {withdraw.withdrawals.map((item) => (
               <WithdrawRow
-                key={item._id}
+                key={String(item.clerkId)}
                 withdrawal={item}
                 withdraw={withdraw}
               />
