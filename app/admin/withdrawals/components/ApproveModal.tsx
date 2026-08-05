@@ -10,18 +10,25 @@ interface Props {
 
 export default function ApproveModal({ withdraw }: Props) {
   const [transactionId, setTransactionId] = useState("");
-
+  const [disabled, setDisable] = useState(false);
   if (withdraw.modal !== "paid" || !withdraw.selectedWithdrawal) {
     return null;
   }
 
   async function handleApprove() {
+    setDisable(true);
     if (!transactionId.trim()) {
       alert("Transaction ID is required.");
       return;
     }
 
-    const withdrawalId = withdraw.selectedWithdrawal?._id?.toString();
+    const selectedWithdrawal = withdraw.selectedWithdrawal as {
+      _id?: { toString(): string } | string;
+      id?: { toString(): string } | string;
+    };
+
+    const withdrawalId =
+      selectedWithdrawal._id?.toString() ?? selectedWithdrawal.id?.toString();
 
     if (!withdrawalId) {
       alert("Selected withdrawal is invalid.");
@@ -33,7 +40,7 @@ export default function ApproveModal({ withdraw }: Props) {
     setTransactionId("");
 
     withdraw.setModal(null);
-
+    setDisable(false);
     withdraw.setSelectedWithdrawal(null);
   }
 
@@ -91,8 +98,9 @@ export default function ApproveModal({ withdraw }: Props) {
           </button>
 
           <button
+            disabled={disabled}
             onClick={handleApprove}
-            className="rounded-lg bg-green-600 px-5 py-2 text-white hover:bg-green-700"
+            className="rounded-lg bg-green-600 disabled:bg-slate-600 disabled:pointer-events-none px-5 py-2 text-white hover:bg-green-700"
           >
             Confirm Payment
           </button>

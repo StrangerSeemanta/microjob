@@ -83,16 +83,12 @@ export async function POST(req: NextRequest) {
     // Deduct Balance
     //---------------------------------------
 
-    user.balance -= amount;
-    user.pending += amount;
-
-    await user.save();
-
     //---------------------------------------
     // Create Request
     //---------------------------------------
-
+    console.log(user);
     const withdrawal = await WithdrawalRequest.create({
+      userId: user._id,
       clerkId,
 
       amount,
@@ -105,7 +101,10 @@ export async function POST(req: NextRequest) {
 
       status: "pending",
     });
+    user.balance -= amount;
+    user.pending += amount;
 
+    await user.save();
     return NextResponse.json({
       success: true,
       message: "Withdrawal request submitted.",

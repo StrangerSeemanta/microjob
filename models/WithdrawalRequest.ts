@@ -2,9 +2,6 @@ import { Schema, model, models, InferSchemaType } from "mongoose";
 
 const WithdrawalRequestSchema = new Schema(
   {
-    _id:{
-      type:Schema.Types.ObjectId,
-    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",

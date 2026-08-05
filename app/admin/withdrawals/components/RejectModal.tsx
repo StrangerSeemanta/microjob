@@ -27,12 +27,18 @@ export default function RejectModal({ withdraw }: Props) {
       return;
     }
 
-    if (!selected._id) {
+    const selectedWithId = selected as typeof selected & {
+      _id?: string;
+      id?: string;
+    };
+    const withdrawalId = selectedWithId._id ?? selectedWithId.id;
+
+    if (!withdrawalId) {
       toast.add({ title: "Missing withdrawal ID." });
       return;
     }
 
-    await withdraw.reject(String(selected._id), trimmedReason);
+    await withdraw.reject(withdrawalId, trimmedReason);
 
     setReason("");
 

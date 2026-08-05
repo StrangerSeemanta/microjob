@@ -27,13 +27,14 @@ export default async function AdminManageUsersPage(params: {
 
   await connectDB();
 
-  const getBalance = async (clerkId: string) => {
-    const balance_obj = await User.findOne({ clerkId: clerkId })
-      .select("balance")
-      .lean();
-    const balance = balance_obj.balance;
-    return balance ? formatCurrency(Number(balance)) : "";
-  };
+  // const getBalance = async (clerkId: string) => {
+  //   const balance_obj = await User.findOne({ clerkId: clerkId })
+  //     .select("balance")
+  //     .lean();
+  //   console.log(clerkId);
+  //   const balance = balance_obj.balance;
+  //   return balance ? formatCurrency(Number(balance)) : "";
+  // };
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-8">
       <SearchUsers />
@@ -69,9 +70,9 @@ export default async function AdminManageUsersPage(params: {
                       : ""}
                   </p>
                 </div>
-                <h1 className="text-xs text-slate-500 mt-1">
+                {/* <h1 className="text-xs text-slate-500 mt-1">
                   {await getBalance(user.id)}
-                </h1>
+                </h1> */}
               </div>
 
               <div className="mb-3 py-2 border-t border-b border-slate-200">
