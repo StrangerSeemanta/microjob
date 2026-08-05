@@ -2,6 +2,8 @@ import User from "@/models/User";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
+const TASK_REWARD = 0.2;
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newBalance = user.balance + 0.1;
+    const newBalance = user.balance + TASK_REWARD;
     user.balance = newBalance.toFixed(6);
     user.markModified("balance");
 
