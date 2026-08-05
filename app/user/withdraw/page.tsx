@@ -73,7 +73,7 @@ export default function WithdrawPage() {
     }
     const minpay = paymentMethod === "mobile_recharge" ? 50 : 100;
     if (value < minpay) {
-      setMessage(`Minimum withdrawal amount is ${}`);
+      setMessage(`Minimum withdrawal amount is ${minpay} !!!`);
       return;
     }
 
