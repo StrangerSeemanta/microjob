@@ -38,7 +38,7 @@ function Footer() {
         </div>
 
         <Link
-          href="https://t.me/your_group"
+          href="https://t.me/+xkoZh21FblkwZDk9"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center rounded-full bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"

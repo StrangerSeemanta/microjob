@@ -1,6 +1,7 @@
 "use server";
 
 import { getCollection } from "@/lib/db";
+import { ObjectId } from "mongodb";
 
 export async function addTaskToDatabase(formData: FormData) {
   const title = formData.get("title")?.toString().trim();
@@ -25,4 +26,11 @@ export async function addTaskToDatabase(formData: FormData) {
     success: true,
     message: "Task added successfully",
   };
+}
+export async function deleteTask(taskId: string) {
+  const query = { _id: new ObjectId(taskId) };
+  const collection = await getCollection("taskDB", "tasks");
+
+  const result = await collection.deleteOne(query);
+  return result.deletedCount === 1;
 }

@@ -6,7 +6,8 @@ import type { UseWithdrawalsReturn } from "../hooks/useWithdrawals";
 import { useEffect, useState } from "react";
 import { UserDataType } from "@/types/UserData";
 import { Loader } from "lucide-react";
-import { UserAvatar } from "@clerk/nextjs";
+import { fetchUserByClerkId } from "@/app/actions/fetchUserById";
+import Image from "next/image";
 
 interface Props {
   withdrawal: Withdrawal;
@@ -14,7 +15,14 @@ interface Props {
 }
 
 export default function WithdrawRow({ withdrawal, withdraw }: Props) {
-  const [user, setUser] = useState<UserDataType | null>(null);
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+    balance: number;
+    taskCompleted: number;
+    imageUrl: string;
+    email: string;
+  } | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
@@ -22,14 +30,15 @@ export default function WithdrawRow({ withdrawal, withdraw }: Props) {
 
     const loadUserData = async () => {
       try {
-        const response = await fetch("/api/user");
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data");
-        }
-
-        const userData = await response.json();
-
+        const userDataStr = await fetchUserByClerkId(withdrawal.clerkId);
+        const userData = JSON.parse(userDataStr) as unknown as {
+          firstName: string;
+          lastName: string;
+          balance: number;
+          taskCompleted: number;
+          imageUrl: string;
+          email:string;
+        };
         if (isMounted) {
           setUser(userData);
           setLoadingUser(false);
@@ -48,7 +57,7 @@ export default function WithdrawRow({ withdrawal, withdraw }: Props) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [withdrawal.clerkId]);
 
   return (
     <tr className="border-b hover:bg-gray-50 transition">
@@ -65,7 +74,13 @@ export default function WithdrawRow({ withdrawal, withdraw }: Props) {
           user && (
             <div>
               <div className="flex justify-start items-center flex-wrap">
-                <UserAvatar />
+                <Image
+                  src={user.imageUrl}
+                  width={40}
+                  height={40}
+                  alt="image"
+                  className="rounded-full mr-2"
+                />
                 <p className="font-medium text-sm">
                   {user.firstName} {user.lastName}
                 </p>

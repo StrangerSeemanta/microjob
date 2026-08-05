@@ -25,16 +25,7 @@ export default async function AdminManageUsersPage(params: {
     ? (await client.users.getUserList({ query: query })).data
     : (await client.users.getUserList()).data;
 
-  await connectDB();
-
-  // const getBalance = async (clerkId: string) => {
-  //   const balance_obj = await User.findOne({ clerkId: clerkId })
-  //     .select("balance")
-  //     .lean();
-  //   console.log(clerkId);
-  //   const balance = balance_obj.balance;
-  //   return balance ? formatCurrency(Number(balance)) : "";
-  // };
+ 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-8">
       <SearchUsers />

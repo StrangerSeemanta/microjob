@@ -52,6 +52,26 @@ function page() {
           </Link>
 
           <Link
+            href="/admin/manage_task"
+            className="group flex min-h-40 flex-col justify-between rounded-3xl border border-blue-400/30 bg-orange-600/90 p-5 transition duration-300 hover:-translate-y-1 hover:bg-orange-900"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-100">
+                Manage
+              </span>
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-3 text-2xl">
+                <ListPlus />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white">Manage Task</h2>
+              <p className="mt-2 text-sm text-blue-50/80">
+                Delete Tasks for users.
+              </p>
+            </div>
+          </Link>
+
+          <Link
             href="/admin/manage_users"
             className="group flex min-h-40 flex-col justify-between rounded-3xl border border-emerald-400/30 bg-emerald-600/90 p-5 transition duration-300 hover:-translate-y-1 hover:bg-emerald-500"
           >
