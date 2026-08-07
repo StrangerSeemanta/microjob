@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Set new cooldown (5 miniutes)
+    // Set new cooldown (10 miniutes)
     const cooldownUntil = new Date(Date.now() + 60_000 * 10 );
 
     user.cooldowns.set(taskId, cooldownUntil);
