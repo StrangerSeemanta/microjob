@@ -1,4 +1,4 @@
-import { BanknoteArrowDown, ListPlus, Users } from "lucide-react";
+import { BanknoteArrowDown, Database, ListPlus, Users } from "lucide-react";
 import Link from "next/link";
 
 function page() {
@@ -109,6 +109,28 @@ function page() {
               </h2>
               <p className="mt-2 text-sm text-amber-50/80">
                 Approve or review pending withdrawal requests.
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/customer_support"
+            className="group flex min-h-40 flex-col justify-between rounded-3xl border border-fuchsia-400/30 bg-fuchsia-600/90 p-5 transition duration-300 hover:-translate-y-1 hover:bg-fuchsia-500"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-fuchsia-100">
+                Manage
+              </span>
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-3 text-2xl">
+                <Database />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white">
+                Customer Support
+              </h2>
+              <p className="mt-2 text-sm text-amber-50/80">
+                Manage Customer Support
               </p>
             </div>
           </Link>

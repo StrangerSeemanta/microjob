@@ -16,7 +16,7 @@ export default function SearchUsers() {
           const queryTerm = formData.get("search") as string;
           router.push(pathname + "?search=" + queryTerm);
         }}
-        className="w-full h-fit bg-white rounded-lg flex flex-wrap justify-center items-center gap-4"
+        className="w-full h-fit bg-white p-2 rounded-lg flex flex-wrap justify-center items-center gap-4"
       >
         <label htmlFor="search" className="text-lg  font-medium text-slate-700">
           Search for users
@@ -26,7 +26,7 @@ export default function SearchUsers() {
           name="search"
           type="text"
           placeholder="Enter username, name, email or id..."
-          className="flex-1 py-2 px-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className=" py-2 px-2 flex-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <button
           type="submit"

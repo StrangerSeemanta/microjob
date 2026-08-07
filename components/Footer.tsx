@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React from "react";
+import FooterBtn from "./FooterBtn";
 
 function Footer() {
   return (
@@ -37,14 +38,7 @@ function Footer() {
           </div>
         </div>
 
-        <Link
-          href="https://t.me/+xkoZh21FblkwZDk9"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-full bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
-        >
-          Message Customer Support
-        </Link>
+        <FooterBtn />
       </div>
     </div>
   );
