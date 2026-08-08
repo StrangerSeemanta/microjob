@@ -1,4 +1,10 @@
-import { BanknoteArrowDown, Database, ListPlus, Users } from "lucide-react";
+import {
+  BanknoteArrowDown,
+  Database,
+  Image,
+  ListPlus,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 
 function page() {
@@ -131,6 +137,27 @@ function page() {
               </h2>
               <p className="mt-2 text-sm text-amber-50/80">
                 Manage Customer Support
+              </p>
+            </div>
+          </Link>
+          <Link
+            href="/admin/banners"
+            className="group flex min-h-40 flex-col justify-between rounded-3xl border border-yellow-400/30 bg-yellow-600/90 p-5 transition duration-300 hover:-translate-y-1 hover:bg-yellow-500"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-yellow-100">
+                Manage
+              </span>
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-3 text-2xl">
+                <Image/>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white">
+                Manage Banners{" "}
+              </h2>
+              <p className="mt-2 text-sm text-amber-50/80">
+                upload and delete banners
               </p>
             </div>
           </Link>
