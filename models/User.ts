@@ -34,9 +34,9 @@ const UserSchema = new Schema(
       balance: {
         type: Double,
       },
-      tasksCompleted:{
-        type:Number
-      }
+      tasksCompleted: {
+        type: Number,
+      },
     },
     // Your custom fields
     balance: {
@@ -71,14 +71,14 @@ const UserSchema = new Schema(
     cooldowns: {
       type: Map,
       of: Date,
-      default: {},
+      default: new Map(),
     },
 
     //referrals
     referralId: {
       type: String,
       unique: true,
-      require:true
+      require: true,
     },
 
     referredBy: {
