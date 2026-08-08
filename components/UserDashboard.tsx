@@ -276,6 +276,8 @@ function UserDashboard() {
             </div>
           </div>
         </div>
+        {/* Banner */}
+        <div>hello</div>
 
         <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
           <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4 shadow-inner shadow-black/20 sm:p-6">

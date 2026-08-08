@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toast";
+import { Analytics } from "@vercel/analytics/next";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col  bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.35),transparent_35%),linear-gradient(135deg,#020617_0%,#0f172a_50%,#111827_100%)]">
         <ClerkProvider>{children}</ClerkProvider>
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
