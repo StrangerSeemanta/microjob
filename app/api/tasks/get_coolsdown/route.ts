@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import User from "@/models/User";
+import { connectDB } from "@/lib/mongodb";
 
 export async function POST(request: Request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-
+    await connectDB();
     const user = await User.findOne({
       clerkId: userId,
     }).select("cooldowns");

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { fetchTaskById } from "@/lib/fetchTasks";
 import User from "@/models/User";
+import { connectDB } from "@/lib/mongodb";
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
-
+    await connectDB();
     const user = await User.findOne({
       clerkId: userId,
     });
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
     }
 
     // Set new cooldown (10 miniutes)
-    const cooldownUntil = new Date(Date.now() + 60_000 * 10 );
+    const cooldownUntil = new Date(Date.now() + 60_000 * 10);
 
     user.cooldowns.set(taskId, cooldownUntil);
     user.markModified("cooldowns");
