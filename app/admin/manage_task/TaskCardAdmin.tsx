@@ -119,7 +119,7 @@ function TaskCardAdmin() {
                   {task.description}
                 </p>
                 <h1 className="text-lg mb-3 font-bold text-emerald-400">
-                  Earn : BDT 0.10 taka
+                  Earn : BDT 0.20 taka
                 </h1>
 
                 <button
