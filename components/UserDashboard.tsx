@@ -27,9 +27,22 @@ function UserDashboard() {
       const response = await fetch("/api/user/sync", {
         method: "POST",
       }).catch(console.error);
+
       if (!response || !response.ok) {
         console.error("Failed to sync user data");
+        throw new Error("Failed to sync user data");
       }
+
+      const responseData = (await response.json()) as {
+        success: boolean;
+        message: string;
+      };
+
+      if (!responseData.success) {
+        console.error("Failed To sync ", responseData.message);
+        throw new Error(`Failed To sync ??  ${responseData.message}`);
+      }
+
       return response;
     };
 

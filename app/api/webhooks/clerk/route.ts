@@ -40,9 +40,9 @@ export async function POST(req: Request) {
     const isAdmin = adminEmails.includes(userEmail);
 
     await connectDB();
-    
-    const referral_Id = String(user.id).split("_")[1];
 
+    const referral_Id = String(user.id).split("_")[1];
+    
     await User.create({
       clerkId: user.id,
       email: user.email_addresses[0]?.email_address,
@@ -53,9 +53,10 @@ export async function POST(req: Request) {
       publicMetadata: {
         role: isAdmin ? "admin" : user.public_metadata?.role,
         balance: user.public_metadata?.balance,
+        tasksCompleted: user.public_metadata?.tasksCompleted,
       },
       role: isAdmin ? "admin" : user.public_metadata?.role || "user",
-      referralId:referral_Id
+      referralId: referral_Id,
     });
   }
 

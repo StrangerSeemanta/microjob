@@ -8,5 +8,6 @@ export interface UserDataTypeClerk {
   public_metadata?: {
     role?: string;
     balance?: number;
+    tasksCompleted?: number;
   };
 }

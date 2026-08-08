@@ -34,6 +34,9 @@ const UserSchema = new Schema(
       balance: {
         type: Double,
       },
+      tasksCompleted:{
+        type:Number
+      }
     },
     // Your custom fields
     balance: {

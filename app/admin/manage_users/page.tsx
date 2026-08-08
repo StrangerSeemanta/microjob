@@ -7,6 +7,7 @@ import DeleteUserBtn from "./DeleteUserBtn";
 import CreatedAtUserComp from "./CreatedAtUserComp";
 import Link from "next/link";
 import { Home } from "lucide-react";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 export default async function AdminManageUsersPage(params: {
   searchParams: Promise<{ search?: string; page?: string }>;
@@ -62,7 +63,10 @@ export default async function AdminManageUsersPage(params: {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-8">
-      <Link href="/" className="text-blue underline flex justify-start items-center bg-white p-2">
+      <Link
+        href="/"
+        className="text-blue underline flex justify-start items-center bg-white p-2"
+      >
         <Home /> Home
       </Link>
       <SearchUsers />
@@ -149,6 +153,18 @@ export default async function AdminManageUsersPage(params: {
                         : ""}
                     </p>
                     <CreatedAtUserComp createdAt={user.createdAt} />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Balance:{" "}
+                      {user.publicMetadata?.balance
+                        ? formatCurrency(Number(user.publicMetadata?.balance))
+                        : "balance not found... click view details"}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Tasks Completed:{" "}
+                      {user.publicMetadata?.tasksCompleted
+                        ? (Number(user.publicMetadata?.tasksCompleted))
+                        : "Tasks Completed data not found... click view details"}
+                    </p>
                   </div>
                 </div>
 
@@ -162,7 +178,12 @@ export default async function AdminManageUsersPage(params: {
                     </span>
                   </p>
                 </div>
-
+                <Link
+                  className="inline-flex mr-2 items-center  justify-center rounded-md border border-indigo-600 bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  href={`/admin/manage_users/${user.id.toString()}`}
+                >
+                  View Details
+                </Link>
                 <DeleteUserBtn userId={user.id} />
               </div>
             ))}

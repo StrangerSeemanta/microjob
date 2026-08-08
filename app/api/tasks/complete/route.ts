@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
     const newBalance = user.balance + TASK_REWARD;
     user.balance = newBalance.toFixed(6);
     user.markModified("balance");
-
-    user.tasksCompleted += 1;
+    const newTasksCompleted = user.tasksCompleted + 1;
+    user.tasksCompleted = newTasksCompleted;
     user.markModified("tasksCompleted");
 
     await user.save();
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     await clerk.users.updateUserMetadata(userId, {
       publicMetadata: {
         balance: newBalance.toFixed(6),
+        tasksCompleted: newTasksCompleted,
       },
     });
     return NextResponse.json({
