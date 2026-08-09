@@ -43,7 +43,7 @@ export default function RootLayout({
         jetbrainsMono.variable,
       )}
     >
-      <body className="min-h-full flex flex-col  bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.35),transparent_35%),linear-gradient(135deg,#020617_0%,#0f172a_50%,#111827_100%)] bg-fixed bg-no-repeat bg-cover bg-center">
+      <body className="min-h-full flex flex-col  bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.35),transparent_35%),linear-gradient(135deg,#020617_0%,#0f172a_50%,#111827_100%)] bg-fixed bg-no-repeat bg-cover bg-center break-words">
         <ClerkProvider>{children}</ClerkProvider>
         <Toaster />
         <Analytics />
