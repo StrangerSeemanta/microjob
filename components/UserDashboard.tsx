@@ -11,8 +11,16 @@ import { toast } from "./ui/toast";
 import { addPhoneNumber } from "@/app/actions/addPhone";
 import Footer from "./Footer";
 import Banner from "./Banner";
+import { useAuth, useClerk } from "@clerk/nextjs";
+import { createClient } from "@/lib/supabase/client";
 
 function UserDashboard() {
+  const supabase = createClient();
+  const { signOut } = useClerk();
+
+  const { isSignedIn: clerkSignedIn } = useAuth();
+  const [supabaseSignedIn, setSupabaseSignedIn] = useState(false);
+
   const [loadingUser, setLoadingUser] = useState(true);
   const [currentUser, setUser] = useState<UserDataResponse | null>(null);
 
@@ -27,6 +35,42 @@ function UserDashboard() {
   // =========================================================
   // LOAD UNIFIED USER
   // =========================================================
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkSession() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (mounted) {
+          setSupabaseSignedIn(!!session);
+        }
+      } catch (error) {
+        console.error("Supabase session check failed:", error);
+
+        if (mounted) {
+          setSupabaseSignedIn(false);
+        }
+      }
+    }
+
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+
+      setSupabaseSignedIn(!!session);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let mounted = true;
@@ -168,8 +212,6 @@ function UserDashboard() {
         year: "numeric",
       }).format(new Date(currentUser.createdAt))
     : "N/A";
-
-  
 
   // =========================================================
   // PROFILE IMAGE
@@ -319,6 +361,34 @@ function UserDashboard() {
       </form>
     );
   }
+  async function handleSignOut() {
+    setLoadingUser(true);
+
+    try {
+      if (supabaseSignedIn) {
+        const { error } = await supabase.auth.signOut();
+
+        if (error) {
+          throw error;
+        }
+
+        setSupabaseSignedIn(false);
+      }
+
+      if (clerkSignedIn) {
+        signOut({ redirectUrl: "/" });
+        return;
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error("Sign out failed:", error);
+
+      console.error(error instanceof Error ? error.message : "Sign out failed.");
+    } finally {
+      setLoadingUser(false);
+    }
+  }
 
   // =========================================================
   // DASHBOARD
@@ -377,9 +447,7 @@ function UserDashboard() {
               </div>
 
               <button
-                onClick={() => {
-                  window.location.href = "/";
-                }}
+                onClick={handleSignOut}
                 className="w-full rounded-full bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-white/80 sm:w-auto"
               >
                 Logout

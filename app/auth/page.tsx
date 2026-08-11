@@ -11,10 +11,7 @@ export default function AuthPage() {
   // Clerk
   // ==================================================
 
-  const {
-    isLoaded: clerkLoaded,
-    isSignedIn: clerkSignedIn,
-  } = useAuth();
+  const { isLoaded: clerkLoaded, isSignedIn: clerkSignedIn } = useAuth();
 
   const { user: clerkUser } = useUser();
 
@@ -55,9 +52,7 @@ export default function AuthPage() {
 
     if (!response.ok || !data.success) {
       throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to synchronize user account.",
+        data.error || data.message || "Failed to synchronize user account.",
       );
     }
 
@@ -82,10 +77,7 @@ export default function AuthPage() {
           setSupabaseLoaded(true);
         }
       } catch (error) {
-        console.error(
-          "Supabase session check failed:",
-          error,
-        );
+        console.error("Supabase session check failed:", error);
 
         if (mounted) {
           setSupabaseSignedIn(false);
@@ -98,13 +90,11 @@ export default function AuthPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
 
-        setSupabaseSignedIn(!!session);
-      },
-    );
+      setSupabaseSignedIn(!!session);
+    });
 
     return () => {
       mounted = false;
@@ -124,12 +114,7 @@ export default function AuthPage() {
     if (clerkSignedIn || supabaseSignedIn) {
       window.location.replace("/user/dashboard");
     }
-  }, [
-    clerkLoaded,
-    supabaseLoaded,
-    clerkSignedIn,
-    supabaseSignedIn,
-  ]);
+  }, [clerkLoaded, supabaseLoaded, clerkSignedIn, supabaseSignedIn]);
 
   // ==================================================
   // Loading screen
@@ -143,13 +128,10 @@ export default function AuthPage() {
             ✦
           </div>
 
-          <h1 className="text-lg font-semibold">
-            Checking your account...
-          </h1>
+          <h1 className="text-lg font-semibold">Checking your account...</h1>
 
           <p className="mt-2 text-sm text-slate-400">
-            Please wait while we securely check your
-            session.
+            Please wait while we securely check your session.
           </p>
         </div>
       </main>
@@ -164,9 +146,7 @@ export default function AuthPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
-          <div className="text-lg font-semibold">
-            Redirecting...
-          </div>
+          <div className="text-lg font-semibold">Redirecting...</div>
 
           <p className="mt-2 text-sm text-slate-400">
             Your account is already signed in.
@@ -180,9 +160,7 @@ export default function AuthPage() {
   // Login / Signup
   // ==================================================
 
-  async function handleSubmit(
-    e: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setAuthLoading(true);
@@ -203,11 +181,10 @@ export default function AuthPage() {
       // ------------------------------------------------
 
       if (mode === "login") {
-        const { data, error } =
-          await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase(),
-            password,
-          });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
 
         if (error) {
           throw error;
@@ -242,19 +219,18 @@ export default function AuthPage() {
       // SIGNUP
       // ------------------------------------------------
 
-      const { data, error } =
-        await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
 
-          // Store name inside Supabase user metadata
-          options: {
-            data: {
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-            },
+        // Store name inside Supabase user metadata
+        options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
           },
-        });
+        },
+      });
 
       if (error) {
         throw error;
@@ -283,10 +259,7 @@ export default function AuthPage() {
       // Clear sensitive/form fields
       setPassword("");
     } catch (error) {
-      console.error(
-        "Authentication error:",
-        error,
-      );
+      console.error("Authentication error:", error);
 
       setMessage(
         error instanceof Error
@@ -308,8 +281,7 @@ export default function AuthPage() {
 
     try {
       if (supabaseSignedIn) {
-        const { error } =
-          await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut();
 
         if (error) {
           throw error;
@@ -334,17 +306,38 @@ export default function AuthPage() {
 
       setMessage("Signed out successfully.");
     } catch (error) {
-      console.error(
-        "Sign out failed:",
-        error,
-      );
+      console.error("Sign out failed:", error);
+
+      setMessage(error instanceof Error ? error.message : "Sign out failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setAuthLoading(true);
+    setMessage("");
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error("Google authentication error:", error);
 
       setMessage(
         error instanceof Error
           ? error.message
-          : "Sign out failed.",
+          : "Google authentication failed. Please try again.",
       );
-    } finally {
+
       setAuthLoading(false);
     }
   }
@@ -356,7 +349,6 @@ export default function AuthPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-linear-to-br from-slate-950 via-red-950 to-slate-900 px-6 py-12 text-white">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/10 p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
-
         {/* Logo */}
 
         <div className="mb-6 text-center">
@@ -375,13 +367,52 @@ export default function AuthPage() {
           </p>
         </div>
 
+        {/* Continue with Google */}
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={authLoading}
+          className="flex w-full items-center justify-center gap-3 rounded-full border border-white/10 bg-white px-6 py-3 font-semibold text-slate-900 shadow-lg transition hover:scale-[1.01] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M21.805 10.023h-9.768v3.955h5.617c-.242 1.273-.969 2.352-2.066 3.073v2.553h3.348c1.96-1.804 3.09-4.46 3.09-7.581 0-.68-.077-1.34-.221-2Z"
+              fill="#4285F4"
+            />
+            <path
+              d="M12.037 22c2.79 0 5.133-.925 6.844-2.506l-3.348-2.553c-.925.62-2.104.987-3.496.987-2.69 0-4.973-1.817-5.786-4.26H2.79v2.637A10.337 10.337 0 0 0 12.037 22Z"
+              fill="#34A853"
+            />
+            <path
+              d="M6.251 13.668a6.215 6.215 0 0 1-.324-1.971c0-.684.117-1.349.324-1.971V7.089H2.79a10.337 10.337 0 0 0 0 9.216l3.461-2.637Z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12.037 5.466c1.517 0 2.878.522 3.951 1.546l2.963-2.963C17.165 2.417 14.822 1.333 12.037 1.333A10.337 10.337 0 0 0 2.79 7.089l3.461 2.637c.813-2.443 3.096-4.26 5.786-4.26Z"
+              fill="#EA4335"
+            />
+          </svg>
+          Continue with Google
+        </button>
+
+        <div className="my-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/10" />
+
+          <span className="text-xs text-slate-500">OR</span>
+
+          <div className="h-px flex-1 bg-white/10" />
+        </div>
+
         {/* Form */}
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4"
-        >
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* First Name + Last Name */}
 
           {mode === "signup" && (
@@ -395,9 +426,7 @@ export default function AuthPage() {
                   type="text"
                   placeholder="John"
                   value={firstName}
-                  onChange={(e) =>
-                    setFirstName(e.target.value)
-                  }
+                  onChange={(e) => setFirstName(e.target.value)}
                   required
                   autoComplete="given-name"
                   className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
@@ -413,9 +442,7 @@ export default function AuthPage() {
                   type="text"
                   placeholder="Doe"
                   value={lastName}
-                  onChange={(e) =>
-                    setLastName(e.target.value)
-                  }
+                  onChange={(e) => setLastName(e.target.value)}
                   required
                   autoComplete="family-name"
                   className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
@@ -435,9 +462,7 @@ export default function AuthPage() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
+              onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
@@ -455,15 +480,11 @@ export default function AuthPage() {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
+              onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
               autoComplete={
-                mode === "login"
-                  ? "current-password"
-                  : "new-password"
+                mode === "login" ? "current-password" : "new-password"
               }
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
             />
@@ -498,11 +519,7 @@ export default function AuthPage() {
           type="button"
           disabled={authLoading}
           onClick={() => {
-            setMode(
-              mode === "login"
-                ? "signup"
-                : "login",
-            );
+            setMode(mode === "login" ? "signup" : "login");
 
             setMessage("");
           }}
@@ -531,8 +548,7 @@ export default function AuthPage() {
         {clerkSignedIn && (
           <div className="mt-5 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-center text-xs text-slate-400">
             Clerk account detected
-            {clerkUser?.primaryEmailAddress
-              ?.emailAddress
+            {clerkUser?.primaryEmailAddress?.emailAddress
               ? `: ${clerkUser.primaryEmailAddress.emailAddress}`
               : ""}
           </div>
