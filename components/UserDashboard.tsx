@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { UserDataResponse } from "@/types/UserData";
@@ -403,9 +404,8 @@ function UserDashboard() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               {/* Avatar */}
               <div className="shrink-0 rounded-2xl border border-white/30 bg-white/20 p-2 shadow-lg shadow-black/20">
-                <Image
-                  width={64}
-                  height={64}
+                <img
+
                   src={profileImage}
                   alt={displayName}
                   className="h-16 w-16 rounded-xl object-cover"
