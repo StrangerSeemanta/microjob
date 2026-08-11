@@ -1,38 +1,33 @@
-import { auth } from "@clerk/nextjs/server";
-import User from "@/models/User";
-import { connectDB } from "@/lib/mongodb";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
+    // ----------------------------------------
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase users
+    // - Existing Clerk users
+    // ----------------------------------------
 
-    if (!userId) {
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
+
+    if (!authenticated) {
       return Response.json(
         {
           success: false,
-          message: "Unauthorized.",
+          message: "Unauthorized",
         },
         { status: 401 },
       );
     }
 
-    const body = await request.json();
-
-    const { taskId } = body;
-
-    if (!taskId || typeof taskId !== "string") {
-      return Response.json(
-        {
-          success: false,
-          message: "Task ID is required.",
-        },
-        { status: 400 },
-      );
-    }
-    await connectDB();
-    const user = await User.findOne({
-      clerkId: userId,
-    }).select("cooldowns");
+    // ----------------------------------------
+    // 2. MongoDB user must exist
+    // ----------------------------------------
 
     if (!user) {
       return Response.json(
@@ -44,9 +39,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const cooldownUntil = user.cooldowns?.get(taskId);
+    // ----------------------------------------
+    // 3. Get task ID
+    // ----------------------------------------
 
+    const body = await request.json();
+
+    const { taskId } = body;
+
+    if (
+      !taskId ||
+      typeof taskId !== "string"
+    ) {
+      return Response.json(
+        {
+          success: false,
+          message: "Task ID is required.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // ----------------------------------------
+    // 4. Get cooldown
+    // ----------------------------------------
+
+    const cooldownUntil =
+      user.cooldowns?.get(taskId);
+
+    // ----------------------------------------
     // No cooldown exists
+    // ----------------------------------------
+
     if (!cooldownUntil) {
       return Response.json({
         success: true,
@@ -56,10 +80,20 @@ export async function POST(request: Request) {
       });
     }
 
-    const cooldownTime = new Date(cooldownUntil).getTime();
-    const remainingMs = cooldownTime - Date.now();
+    // ----------------------------------------
+    // 5. Calculate remaining time
+    // ----------------------------------------
 
+    const cooldownTime =
+      new Date(cooldownUntil).getTime();
+
+    const remainingMs =
+      cooldownTime - Date.now();
+
+    // ----------------------------------------
     // Cooldown expired
+    // ----------------------------------------
+
     if (remainingMs <= 0) {
       return Response.json({
         success: true,
@@ -69,15 +103,27 @@ export async function POST(request: Request) {
       });
     }
 
+    // ----------------------------------------
     // Cooldown still active
+    // ----------------------------------------
+
     return Response.json({
       success: true,
+
       cooldown: true,
+
       remainingMs,
-      cooldownUntil: new Date(cooldownTime).toISOString(),
+
+      cooldownUntil:
+        new Date(
+          cooldownTime,
+        ).toISOString(),
     });
   } catch (error) {
-    console.error("Failed to fetch cooldown:", error);
+    console.error(
+      "Failed to fetch cooldown:",
+      error,
+    );
 
     return Response.json(
       {

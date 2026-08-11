@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 import { connectDB } from "@/lib/mongodb";
 
-import User from "@/models/User";
 import WithdrawalRequest from "@/models/WithdrawalRequest";
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const { userId: clerkId } = await auth();
+    // ----------------------------------------
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase users
+    // - Existing Clerk users
+    // ----------------------------------------
 
-    if (!clerkId) {
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
+
+    if (!authenticated) {
       return NextResponse.json(
         {
           success: false,
@@ -22,14 +33,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { amount, paymentMethod, accountNumber, accountName } =
-      await req.json();
+    // ----------------------------------------
+    // 2. MongoDB user must exist
+    // ----------------------------------------
 
-    //---------------------------------------
-    // Basic Validation
-    //---------------------------------------
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User not found",
+        },
+        { status: 404 },
+      );
+    }
 
-    if (!amount || !paymentMethod || !accountNumber) {
+    // ----------------------------------------
+    // 3. Get withdrawal data
+    // ----------------------------------------
+
+    const {
+      amount,
+      paymentMethod,
+      accountNumber,
+      accountName,
+    } = await req.json();
+
+    // ----------------------------------------
+    // 4. Basic validation
+    // ----------------------------------------
+
+    if (
+      amount === undefined ||
+      amount === null ||
+      !paymentMethod ||
+      !accountNumber
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -39,37 +77,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (amount <= 0) {
+    const withdrawalAmount =
+      Number(amount);
+
+    if (
+      !Number.isFinite(withdrawalAmount) ||
+      withdrawalAmount <= 0
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid withdrawal amount.",
+          message:
+            "Invalid withdrawal amount.",
         },
         { status: 400 },
       );
     }
 
-    //---------------------------------------
-    // Find User
-    //---------------------------------------
+    // ----------------------------------------
+    // 5. Balance check
+    // ----------------------------------------
 
-    const user = await User.findOne({ clerkId });
-
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "User not found.",
-        },
-        { status: 404 },
-      );
-    }
-
-    //---------------------------------------
-    // Balance Check
-    //---------------------------------------
-
-    if (user.balance < amount) {
+    if (
+      Number(user.balance || 0) <
+      withdrawalAmount
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -79,38 +111,98 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    //---------------------------------------
-    // Deduct Balance
-    //---------------------------------------
+    // ----------------------------------------
+    // 6. Create withdrawal request
+    //
+    // IMPORTANT:
+    //
+    // userId = MongoDB users.data _id
+    //
+    // clerkId = kept temporarily for compatibility
+    // with your existing withdrawal/admin system.
+    // ----------------------------------------
 
-    //---------------------------------------
-    // Create Request
-    //---------------------------------------
-    const withdrawal = await WithdrawalRequest.create({
-      userId: user._id,
-      clerkId,
+    const withdrawal =
+      await WithdrawalRequest.create({
+        userId: user._id,
 
-      amount,
+        // Keep the existing Clerk ID on the
+        // withdrawal document so old admin
+        // functionality and historical records
+        // continue working.
+        clerkId: user.clerkId,
 
-      paymentMethod,
+        amount: withdrawalAmount,
 
-      accountNumber,
+        paymentMethod,
 
-      accountName,
+        accountNumber,
 
-      status: "pending",
-    });
-    user.balance -= amount;
-    user.pending += amount;
+        accountName,
+
+        status: "pending",
+      });
+
+    // ----------------------------------------
+    // 7. Deduct balance
+    // ----------------------------------------
+
+    user.balance =
+      Number(user.balance || 0) -
+      withdrawalAmount;
+
+    user.pending =
+      Number(user.pending || 0) +
+      withdrawalAmount;
+
+    user.markModified("balance");
+    user.markModified("pending");
 
     await user.save();
+
+    // ----------------------------------------
+    // 8. Return safe response
+    // ----------------------------------------
+
     return NextResponse.json({
       success: true,
-      message: "Withdrawal request submitted.",
-      withdrawal,
+
+      message:
+        "Withdrawal request submitted.",
+
+      withdrawal: {
+        id: withdrawal._id.toString(),
+
+        userId:
+          withdrawal.userId?.toString(),
+
+        clerkId:
+          withdrawal.clerkId,
+
+        amount:
+          withdrawal.amount,
+
+        paymentMethod:
+          withdrawal.paymentMethod,
+
+        accountNumber:
+          withdrawal.accountNumber,
+
+        accountName:
+          withdrawal.accountName,
+
+        status:
+          withdrawal.status,
+
+        createdAt:
+          withdrawal.createdAt,
+      },
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "POST /api/withdraw error:",
+      error,
+    );
 
     return NextResponse.json(
       {

@@ -1,48 +1,99 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 import WithdrawalRequest from "@/models/WithdrawalRequest";
-import { connectDB } from "@/lib/mongodb";
 
 export async function GET() {
   try {
-    await connectDB();
+    // ----------------------------------------
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase users
+    // - Existing Clerk users
+    // ----------------------------------------
 
-    const { userId: clerkId } = await auth();
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
 
-    if (!clerkId) {
+    if (!authenticated) {
       return NextResponse.json(
         {
           success: false,
           message: "Unauthorized",
         },
-        { status: 401 }
+        {
+          status: 401,
+        },
       );
     }
 
-    const withdrawals = await WithdrawalRequest.find({
-      clerkId,
-    })
-      .sort({
-        createdAt: -1,
+    // ----------------------------------------
+    // 2. MongoDB user must exist
+    // ----------------------------------------
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User not found",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
+
+    // ----------------------------------------
+    // 3. Existing withdrawal records still use
+    //    clerkId.
+    //
+    // IMPORTANT:
+    //
+    // We are intentionally keeping this for
+    // emergency compatibility.
+    //
+    // The authenticated user is resolved by
+    // email first.
+    //
+    // Then their existing clerkId is used only
+    // to locate historical withdrawal records.
+    // ----------------------------------------
+
+    const withdrawals =
+      await WithdrawalRequest.find({
+        clerkId: user.clerkId,
       })
-      .lean();
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    // ----------------------------------------
+    // 4. Return withdrawal history
+    // ----------------------------------------
 
     return NextResponse.json({
       success: true,
       withdrawals,
     });
-
   } catch (error) {
-    console.error(error);
+    console.error(
+      "GET /api/user/withdrawals error:",
+      error,
+    );
 
     return NextResponse.json(
       {
         success: false,
         message: "Internal Server Error",
       },
-      { status: 500 }
+      {
+        status: 500,
+      },
     );
   }
 }

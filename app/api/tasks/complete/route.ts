@@ -1,79 +1,130 @@
-import User from "@/models/User";
-import { auth, clerkClient } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 const TASK_REWARD = 0.2;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const { userId } = await auth();
+    // ----------------------------------------
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase users
+    // - Existing Clerk users
+    // ----------------------------------------
 
-    if (!userId) {
-      return Response.json(
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
+
+    if (!authenticated) {
+      return NextResponse.json(
         {
           success: false,
           message: "Unauthorized.",
         },
-        { status: 401 },
-      );
-    }
-
-    const { taskId } = await req.json();
-
-    if (!taskId) {
-      return Response.json(
         {
-          success: false,
-          message: "Task ID is required.",
+          status: 401,
         },
-        { status: 400 },
       );
     }
 
-    const user = await User.findOne({
-      clerkId: userId,
-    });
+    // ----------------------------------------
+    // 2. MongoDB user must exist
+    // ----------------------------------------
 
     if (!user) {
-      return Response.json(
+      return NextResponse.json(
         {
           success: false,
           message: "User not found.",
         },
-        { status: 404 },
+        {
+          status: 404,
+        },
       );
     }
 
-    const newBalance = user.balance + TASK_REWARD;
-    user.balance = newBalance.toFixed(6);
+    // ----------------------------------------
+    // 3. Get task ID
+    // ----------------------------------------
+
+    const { taskId } = await req.json();
+
+    if (!taskId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Task ID is required.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    // ----------------------------------------
+    // 4. Calculate reward
+    // ----------------------------------------
+
+    const currentBalance =
+      Number(user.balance || 0);
+
+    const newBalance =
+      currentBalance + TASK_REWARD;
+
+    const newTasksCompleted =
+      Number(user.tasksCompleted || 0) + 1;
+
+    // ----------------------------------------
+    // 5. Update MongoDB
+    // ----------------------------------------
+
+    user.balance = Number(
+      newBalance.toFixed(6),
+    );
+
+    user.tasksCompleted =
+      newTasksCompleted;
+
     user.markModified("balance");
-    const newTasksCompleted = user.tasksCompleted + 1;
-    user.tasksCompleted = newTasksCompleted;
     user.markModified("tasksCompleted");
 
     await user.save();
-    const clerk = await clerkClient();
-    await clerk.users.updateUserMetadata(userId, {
-      publicMetadata: {
-        balance: newBalance.toFixed(6),
-        tasksCompleted: newTasksCompleted,
-      },
-    });
+
+    // ----------------------------------------
+    // 6. Return updated data
+    // ----------------------------------------
+
     return NextResponse.json({
       success: true,
-      message: "Balance Data Updated",
-      newBalance: newBalance,
+
+      message: "Balance data updated.",
+
+      newBalance: Number(
+        newBalance.toFixed(6),
+      ),
+
+      tasksCompleted:
+        newTasksCompleted,
     });
   } catch (error) {
-    console.error("[task/complete]-> Start Task Error:", error);
+    console.error(
+      "[task/complete] Error:",
+      error,
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error. Error Came from task->complete route",
+        message:
+          "Internal Server Error. Error came from task->complete route.",
       },
-      { status: 500 },
+      {
+        status: 500,
+      },
     );
   }
-  // TODO: Move reward logic to a "Complete Task" endpoint.
 }

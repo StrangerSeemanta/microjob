@@ -1,18 +1,20 @@
+import { NextRequest, NextResponse } from "next/server";
+
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-
-import { auth } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 const REFERRAL_REWARD = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    // ----------------------------------------
+    // 1. Authenticate through unified auth
+    // ----------------------------------------
 
-    const { userId } = await auth();
+    const authUser = await getAuthenticatedUser();
 
-    if (!userId) {
+    if (!authUser.authenticated || !authUser.email) {
       return NextResponse.json(
         {
           success: false,
@@ -24,9 +26,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const email = authUser.email;
+
+    // ----------------------------------------
+    // 2. Read request
+    // ----------------------------------------
+
     const { referralId } = await request.json();
 
-    if (!referralId) {
+    if (!referralId || typeof referralId !== "string") {
       return NextResponse.json(
         {
           success: false,
@@ -38,12 +46,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //----------------------------------------
-    // Current User
-    //----------------------------------------
+    const cleanReferralId = referralId.trim();
+
+    if (!cleanReferralId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Referral ID is required.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    // ----------------------------------------
+    // 3. Connect MongoDB
+    // ----------------------------------------
+
+    await connectDB();
+
+    // ----------------------------------------
+    // 4. Find current MongoDB user by email
+    // ----------------------------------------
 
     const currentUser = await User.findOne({
-      clerkId: userId,
+      email,
     });
 
     if (!currentUser) {
@@ -58,9 +86,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //----------------------------------------
-    // Already used?
-    //----------------------------------------
+    // ----------------------------------------
+    // 5. Check if referral already claimed
+    // ----------------------------------------
 
     if (currentUser.referredBy) {
       return NextResponse.json(
@@ -74,12 +102,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //----------------------------------------
-    // Find Referrer
-    //----------------------------------------
+    // ----------------------------------------
+    // 6. Find referrer
+    // ----------------------------------------
 
     const referrer = await User.findOne({
-      referralId: referralId,
+      referralId: cleanReferralId,
     });
 
     if (!referrer) {
@@ -94,11 +122,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //----------------------------------------
-    // Self referral
-    //----------------------------------------
+    // ----------------------------------------
+    // 7. Prevent self referral
+    // ----------------------------------------
 
-    if (referrer.clerkId === currentUser.clerkId) {
+    if (
+      referrer._id.toString() ===
+      currentUser._id.toString()
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -110,9 +141,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    //----------------------------------------
-    // Reward Current User
-    //----------------------------------------
+    // ----------------------------------------
+    // 8. Mark current user as referred
+    // ----------------------------------------
 
     await User.updateOne(
       {
@@ -125,9 +156,9 @@ export async function POST(request: NextRequest) {
       },
     );
 
-    //----------------------------------------
-    // Reward Referrer
-    //----------------------------------------
+    // ----------------------------------------
+    // 9. Reward referrer
+    // ----------------------------------------
 
     await User.updateOne(
       {
@@ -136,21 +167,22 @@ export async function POST(request: NextRequest) {
       {
         $inc: {
           balance: REFERRAL_REWARD,
-
           referralCount: 1,
         },
       },
     );
 
+    // ----------------------------------------
+    // 10. Response
+    // ----------------------------------------
+
     return NextResponse.json({
       success: true,
-
       message: "Referral claimed successfully.",
-
       reward: REFERRAL_REWARD,
     });
   } catch (error) {
-    console.error(error);
+    console.error("[Referral API] Error:", error);
 
     return NextResponse.json(
       {

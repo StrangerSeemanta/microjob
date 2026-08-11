@@ -1,13 +1,22 @@
-import { auth } from "@clerk/nextjs/server";
 import { fetchTaskById } from "@/lib/fetchTasks";
-import User from "@/models/User";
-import { connectDB } from "@/lib/mongodb";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await auth();
+    // ----------------------------------------
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase users
+    // - Existing Clerk users
+    // ----------------------------------------
 
-    if (!userId) {
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
+
+    if (!authenticated) {
       return Response.json(
         {
           success: false,
@@ -16,6 +25,24 @@ export async function POST(req: Request) {
         { status: 401 },
       );
     }
+
+    // ----------------------------------------
+    // 2. MongoDB user must exist
+    // ----------------------------------------
+
+    if (!user) {
+      return Response.json(
+        {
+          success: false,
+          message: "User not found.",
+        },
+        { status: 404 },
+      );
+    }
+
+    // ----------------------------------------
+    // 3. Get task ID
+    // ----------------------------------------
 
     const { taskId } = await req.json();
 
@@ -29,6 +56,10 @@ export async function POST(req: Request) {
       );
     }
 
+    // ----------------------------------------
+    // 4. Find task
+    // ----------------------------------------
+
     const task = await fetchTaskById(taskId);
 
     if (!task) {
@@ -40,42 +71,49 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
-    await connectDB();
-    const user = await User.findOne({
-      clerkId: userId,
-    });
 
-    if (!user) {
+    // ----------------------------------------
+    // 5. Check cooldown for this task
+    // ----------------------------------------
+
+    const existingCooldown =
+      user.cooldowns.get(taskId);
+
+    if (
+      existingCooldown &&
+      existingCooldown.getTime() > Date.now()
+    ) {
       return Response.json(
         {
           success: false,
-          message: "User not found.",
-        },
-        { status: 404 },
-      );
-    }
-
-    // Check cooldown for this task
-    const existingCooldown = user.cooldowns.get(taskId);
-
-    if (existingCooldown && existingCooldown.getTime() > Date.now()) {
-      return Response.json(
-        {
-          success: false,
-          message: "Please wait before starting this task again.",
+          message:
+            "Please wait before starting this task again.",
           cooldownEndsAt: existingCooldown,
         },
         { status: 429 },
       );
     }
 
-    // Set new cooldown (10 miniutes)
-    const cooldownUntil = new Date(Date.now() + 60_000 * 10);
+    // ----------------------------------------
+    // 6. Set new cooldown
+    // ----------------------------------------
 
-    user.cooldowns.set(taskId, cooldownUntil);
+    const cooldownUntil = new Date(
+      Date.now() + 60_000 * 10,
+    );
+
+    user.cooldowns.set(
+      taskId,
+      cooldownUntil,
+    );
+
     user.markModified("cooldowns");
 
     await user.save();
+
+    // ----------------------------------------
+    // 7. Return task
+    // ----------------------------------------
 
     return Response.json({
       success: true,
@@ -84,7 +122,10 @@ export async function POST(req: Request) {
       cooldownEndsAt: cooldownUntil,
     });
   } catch (error) {
-    console.error("Start Task Error:", error);
+    console.error(
+      "Start Task Error:",
+      error,
+    );
 
     return Response.json(
       {
