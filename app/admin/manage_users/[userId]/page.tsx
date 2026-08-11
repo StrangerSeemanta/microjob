@@ -7,33 +7,55 @@ import Image from "next/image";
 interface UserDetailsInterface extends UserDataType {
   _id: ObjectId;
 }
+
 type PageProps = {
   params: Promise<{ userId: string }>;
 };
 
-async function fetchUserDetails(userId: string) {
+// =====================================================
+// Fetch user directly from MongoDB
+// =====================================================
+
+async function fetchUserDetails(
+  userId: string,
+): Promise<UserDetailsInterface | null> {
   try {
+    if (!ObjectId.isValid(userId)) {
+      return null;
+    }
+
     const collection = await getCollection("users", "data");
 
     const doc = await collection.findOne({
-      clerkId: userId,
+      _id: new ObjectId(userId),
     });
 
-    if (!doc) return null;
+    if (!doc) {
+      return null;
+    }
 
     return doc as unknown as UserDetailsInterface;
   } catch (error) {
-    console.error(error);
+    console.error("Failed to fetch user details:", error);
+
     throw new Error("Can't fetch user details!");
   }
 }
 
-function formatDate(date: unknown) {
-  if (!date) return "—";
+// =====================================================
+// Helpers
+// =====================================================
 
-  const parsed = new Date(date as string);
+function formatDate(value: unknown) {
+  if (!value) {
+    return "—";
+  }
 
-  if (Number.isNaN(parsed.getTime())) return "—";
+  const parsed = new Date(value as string | Date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "—";
+  }
 
   return parsed.toLocaleString("en-US", {
     year: "numeric",
@@ -47,10 +69,25 @@ function formatDate(date: unknown) {
 function formatMoney(value: unknown) {
   const amount = Number(value ?? 0);
 
-  if (Number.isNaN(amount)) return "$0.00";
+  if (!Number.isFinite(amount)) {
+    return "$0.00";
+  }
 
   return `$${amount.toFixed(2)}`;
 }
+
+function getDisplayName(user: UserDetailsInterface) {
+  const fullName = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return fullName || user.username || user.email || "Unnamed User";
+}
+
+// =====================================================
+// UI Components
+// =====================================================
 
 function InfoRow({
   label,
@@ -63,7 +100,9 @@ function InfoRow({
 }) {
   return (
     <div className="flex flex-col gap-1 border-b border-gray-100 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm text-gray-500">
+        {label}
+      </span>
 
       <span
         className={`break-all text-sm font-medium text-gray-900 sm:text-right ${
@@ -91,27 +130,39 @@ function StatCard({
         {label}
       </p>
 
-      <p className="mt-2 wrap-break-word text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+      <p className="mt-2 break-words text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
         {value}
       </p>
 
       {description && (
-        <p className="mt-1 text-xs text-gray-400">{description}</p>
+        <p className="mt-1 text-xs text-gray-400">
+          {description}
+        </p>
       )}
     </div>
   );
 }
 
-export default async function Page({ params }: PageProps) {
+// =====================================================
+// Page
+// =====================================================
+
+export default async function Page({
+  params,
+}: PageProps) {
   const { userId } = await params;
 
   const user = await fetchUserDetails(userId);
+
+  // ===================================================
+  // User not found
+  // ===================================================
 
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-8">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl text-red-500">
             !
           </div>
 
@@ -120,7 +171,7 @@ export default async function Page({ params }: PageProps) {
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            No user matched with the provided ID.
+            No MongoDB user matched the provided ID.
           </p>
 
           <div className="mt-6">
@@ -131,10 +182,20 @@ export default async function Page({ params }: PageProps) {
     );
   }
 
+  const displayName = getDisplayName(user);
+
+  // ===================================================
+  // Page
+  // ===================================================
+
   return (
     <main className="min-h-screen bg-gray-50 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
-        {/* Header */}
+
+        {/* ==============================================
+            Header
+        ============================================== */}
+
         <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-2">
@@ -146,10 +207,7 @@ export default async function Page({ params }: PageProps) {
             </h1>
 
             <p className="mt-1 break-all font-mono text-xs text-gray-400">
-              {user.clerkId}
-            </p>
-            <p className="mt-1 break-all font-mono text-xs text-gray-400">
-              {user._id?.toString()}
+              MongoDB ID: {user._id.toString()}
             </p>
           </div>
 
@@ -167,16 +225,19 @@ export default async function Page({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Profile */}
+        {/* ==============================================
+            Profile
+        ============================================== */}
+
         <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="shrink-0">
               {user.imageUrl ? (
                 <Image
-                  width={80}
-                  height={80}
+                  width={96}
+                  height={96}
                   src={user.imageUrl}
-                  alt={user.username || user.email || "User"}
+                  alt={displayName}
                   className="h-20 w-20 rounded-full border border-gray-200 object-cover sm:h-24 sm:w-24"
                 />
               ) : (
@@ -192,27 +253,34 @@ export default async function Page({ params }: PageProps) {
 
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">
-                {[user.firstName, user.lastName].filter(Boolean).join(" ") ||
-                  user.username ||
-                  "Unnamed User"}
+                {displayName}
               </h2>
 
               {user.username && (
-                <p className="mt-1 text-sm text-gray-500">@{user.username}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  @{user.username}
+                </p>
               )}
 
-              <p className="mt-2 break-all text-sm text-gray-500">
-                {user.email}
-              </p>
+              {user.email && (
+                <p className="mt-2 break-all text-sm text-gray-500">
+                  {user.email}
+                </p>
+              )}
 
               {user.phone && (
-                <p className="mt-1 text-sm text-gray-500">{user.phone}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {user.phone}
+                </p>
               )}
             </div>
           </div>
         </section>
 
-        {/* Financial Stats */}
+        {/* ==============================================
+            Financial Overview
+        ============================================== */}
+
         <section className="mb-5">
           <div className="mb-3">
             <h2 className="text-lg font-semibold text-gray-900">
@@ -247,7 +315,10 @@ export default async function Page({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Payment Stats */}
+        {/* ==============================================
+            Payment Overview
+        ============================================== */}
+
         <section className="mb-5">
           <div className="mb-3">
             <h2 className="text-lg font-semibold text-gray-900">
@@ -270,24 +341,64 @@ export default async function Page({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Main Information */}
+        {/* ==============================================
+            Main Information
+        ============================================== */}
+
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
           {/* Account Information */}
+
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Account Information
             </h2>
 
-            <InfoRow label="Clerk ID" value={user.clerkId} mono />
-            <InfoRow label="Email" value={user.email} />
-            <InfoRow label="Phone" value={user.phone || "Not provided"} />
-            <InfoRow label="Username" value={user.username || "Not set"} />
-            <InfoRow label="First Name" value={user.firstName || "Not set"} />
-            <InfoRow label="Last Name" value={user.lastName || "Not set"} />
-            <InfoRow label="Role" value={user.role || "user"} />
+            <InfoRow
+              label="MongoDB ID"
+              value={user._id.toString()}
+              mono
+            />
+
+            <InfoRow
+              label="Clerk ID"
+              value={user.clerkId || "Not linked"}
+              mono={!!user.clerkId}
+            />
+
+            <InfoRow
+              label="Email"
+              value={user.email || "Not provided"}
+            />
+
+            <InfoRow
+              label="Phone"
+              value={user.phone || "Not provided"}
+            />
+
+            <InfoRow
+              label="Username"
+              value={user.username || "Not set"}
+            />
+
+            <InfoRow
+              label="First Name"
+              value={user.firstName || "Not set"}
+            />
+
+            <InfoRow
+              label="Last Name"
+              value={user.lastName || "Not set"}
+            />
+
+            <InfoRow
+              label="Role"
+              value={user.role || "user"}
+            />
           </section>
 
           {/* Referral Information */}
+
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Referral Information
@@ -305,43 +416,66 @@ export default async function Page({ params }: PageProps) {
               mono={!!user.referredBy}
             />
 
-            <InfoRow label="Referral Count" value={user.referralCount ?? 0} />
+            <InfoRow
+              label="Referral Count"
+              value={user.referralCount ?? 0}
+            />
           </section>
 
-          {/* Clerk Metadata */}
+          {/* Public Metadata */}
+
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Public Metadata
             </h2>
 
             <InfoRow
-              label="Metadata Balance"
-              value={formatMoney(user.publicMetadata?.balance)}
+              label="Metadata Role"
+              value={
+                user.publicMetadata?.role
+                  ? String(user.publicMetadata.role)
+                  : "Not set"
+              }
             />
 
             <InfoRow
               label="Metadata Balance"
-              value={formatMoney(user.publicMetadata?.balance)}
+              value={formatMoney(
+                user.publicMetadata?.balance,
+              )}
             />
+
             <InfoRow
               label="Metadata Tasks Completed"
-              value={formatMoney(user.publicMetadata?.tasksCompleted)}
+              value={
+                user.publicMetadata?.tasksCompleted ?? 0
+              }
             />
           </section>
 
-          {/* Dates */}
+          {/* Account Timeline */}
+
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Account Timeline
             </h2>
 
-            <InfoRow label="Created" value={formatDate(user.createdAt)} />
+            <InfoRow
+              label="Created"
+              value={formatDate(user.createdAt)}
+            />
 
-            <InfoRow label="Last Updated" value={formatDate(user.updatedAt)} />
+            <InfoRow
+              label="Last Updated"
+              value={formatDate(user.updatedAt)}
+            />
           </section>
         </div>
 
-        {/* Cooldowns */}
+        {/* ==============================================
+            Cooldowns
+        ============================================== */}
+
         <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
@@ -353,14 +487,16 @@ export default async function Page({ params }: PageProps) {
             </p>
           </div>
 
-          {user.cooldowns && Object.keys(user.cooldowns).length > 0 ? (
+          {user.cooldowns &&
+          Object.keys(user.cooldowns).length > 0 ? (
             <div className="overflow-x-auto rounded-xl border border-gray-100">
-              <table className="w-full min-w-125 text-left text-sm">
+              <table className="w-full min-w-[500px] text-left text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 font-semibold text-gray-600">
                       Task
                     </th>
+
                     <th className="px-4 py-3 font-semibold text-gray-600">
                       Cooldown Until
                     </th>
@@ -368,44 +504,62 @@ export default async function Page({ params }: PageProps) {
                 </thead>
 
                 <tbody>
-                  {Object.entries(user.cooldowns).map(([taskId, cooldown]) => (
-                    <tr
-                      key={taskId}
-                      className="border-b border-gray-100 last:border-0"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                        {taskId}
-                      </td>
+                  {Object.entries(user.cooldowns).map(
+                    ([taskId, cooldown]) => (
+                      <tr
+                        key={taskId}
+                        className="border-b border-gray-100 last:border-0"
+                      >
+                        <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                          {taskId}
+                        </td>
 
-                      <td className="px-4 py-3 text-gray-700">
-                        {formatDate(cooldown)}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-4 py-3 text-gray-700">
+                          {formatDate(cooldown)}
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center">
-              <p className="text-sm text-gray-400">No cooldowns recorded.</p>
+              <p className="text-sm text-gray-400">
+                No cooldowns recorded.
+              </p>
             </div>
           )}
         </section>
 
-        {/* Raw IDs / Technical Information */}
+        {/* ==============================================
+            Technical Information
+        ============================================== */}
+
         <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">
             Technical Information
           </h2>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                MongoDB ID
+              </p>
+
+              <p className="mt-2 break-all font-mono text-xs text-gray-700">
+                {user._id.toString()}
+              </p>
+            </div>
+
             <div className="rounded-xl bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                 Clerk ID
               </p>
 
               <p className="mt-2 break-all font-mono text-xs text-gray-700">
-                {user.clerkId}
+                {user.clerkId || "Not linked"}
               </p>
             </div>
 
@@ -426,16 +580,6 @@ export default async function Page({ params }: PageProps) {
 
               <p className="mt-2 break-all font-mono text-xs text-gray-700">
                 {user.referredBy || "—"}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-gray-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                Database ID
-              </p>
-
-              <p className="mt-2 break-all font-mono text-xs text-gray-700">
-                {user._id?.toString?.() || "—"}
               </p>
             </div>
           </div>

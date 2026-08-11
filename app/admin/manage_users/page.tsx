@@ -1,240 +1,484 @@
-import { checkUserRole } from "@/utils/roles";
-import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import SearchUsers from "./SearchUsers";
+import Link from "next/link";
 import Image from "next/image";
+import { Home } from "lucide-react";
+import { ObjectId } from "mongodb";
+
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
+import { connectDB } from "@/lib/mongodb";
+import User from "@/models/User";
+
+import SearchUsers from "./SearchUsers";
 import DeleteUserBtn from "./DeleteUserBtn";
 import CreatedAtUserComp from "./CreatedAtUserComp";
-import Link from "next/link";
-import { Home } from "lucide-react";
+
 import { formatCurrency } from "@/utils/formatCurrency";
 
-export default async function AdminManageUsersPage(params: {
-  searchParams: Promise<{ search?: string; page?: string }>;
-}) {
-  const currentUser = await auth();
-  if (!currentUser.userId) throw new Error("Failed to get user id");
-  if (!checkUserRole(currentUser.userId, "admin")) {
-    redirect("/unauthorized");
-  }
+interface PageProps {
+searchParams: Promise<{
+search?: string;
+page?: string;
+}>;
+}
 
-  const searchParams = await params.searchParams;
-  const query = searchParams.search;
-  const limit = 10;
-  const rawPage = Number(searchParams.page ?? "1");
-  const currentPage = Number.isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
+export default async function AdminManageUsersPage({
+searchParams,
+}: PageProps) {
+// ----------------------------------------
+// Authentication
+// ----------------------------------------
 
-  const client = await clerkClient();
-  const offset = (currentPage - 1) * limit;
+const { authenticated, user: currentUser } =
+await getAuthenticatedUser();
 
-  const result = query
-    ? await client.users.getUserList({
-        query,
-        limit,
-        offset,
-        orderBy: "-created_at",
-      })
-    : await client.users.getUserList({
-        limit,
-        offset,
-        orderBy: "-created_at",
-      });
+if (!authenticated || !currentUser) {
+redirect("/unauthorized");
+}
 
-  const users = result.data ?? [];
-  const totalCount = Number(
-    result.totalCount ?? result.totalCount ?? users.length + offset,
-  );
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
-  const pageNumbers = Array.from(
-    { length: totalPages },
-    (_, index) => index + 1,
-  );
+// ----------------------------------------
+// Admin check
+// ----------------------------------------
 
-  const createPageUrl = (page: number) => {
-    const params = new URLSearchParams();
+const role =
+currentUser.role ??
+currentUser.publicMetadata?.role ??
+"user";
 
-    if (query) {
-      params.set("search", query);
-    }
+if (String(role).toLowerCase() !== "admin") {
+redirect("/unauthorized");
+}
 
-    params.set("page", String(page));
-    return `?${params.toString()}`;
-  };
+// ----------------------------------------
+// Connect MongoDB
+// ----------------------------------------
 
-  return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-8">
+await connectDB();
+
+// ----------------------------------------
+// Search params
+// ----------------------------------------
+
+const params = await searchParams;
+
+const query = params.search?.trim() ?? "";
+
+const limit = 10;
+
+const parsedPage = Number(params.page ?? "1");
+
+const currentPage =
+Number.isFinite(parsedPage) && parsedPage >= 1
+? Math.floor(parsedPage)
+: 1;
+
+const skip = (currentPage - 1) * limit;
+
+// ----------------------------------------
+// Build MongoDB filter
+// ----------------------------------------
+
+let filter: Record<string, unknown> = {};
+
+if (query) {
+const searchConditions: Record<string, unknown>[] = [
+{
+username: {
+$regex: query,
+$options: "i",
+},
+},
+
+  {
+    email: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+
+  {
+    firstName: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+
+  {
+    lastName: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+
+  {
+    clerkId: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+
+  {
+    referralId: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+
+  {
+    referredBy: {
+      $regex: query,
+      $options: "i",
+    },
+  },
+];
+
+// ----------------------------------------
+// Search MongoDB _id
+// ----------------------------------------
+
+if (ObjectId.isValid(query)) {
+  searchConditions.push({
+    _id: new ObjectId(query),
+  });
+}
+
+filter = {
+  $or: searchConditions,
+};
+
+}
+
+// ----------------------------------------
+// Fetch users
+// ----------------------------------------
+
+const [users, totalCount] = await Promise.all([
+User.find(filter)
+.sort({ createdAt: -1 })
+.skip(skip)
+.limit(limit)
+.lean(),
+
+User.countDocuments(filter),
+
+]);
+
+// ----------------------------------------
+// Pagination
+// ----------------------------------------
+
+const totalPages = Math.max(
+1,
+Math.ceil(totalCount / limit),
+);
+
+const createPageUrl = (page: number) => {
+const search = new URLSearchParams();
+
+if (query) {
+  search.set("search", query);
+}
+
+search.set("page", String(page));
+
+return `/admin/manage_users?${search.toString()}`;
+
+};
+
+const showingFrom =
+totalCount === 0 ? 0 : skip + 1;
+
+const showingTo = Math.min(
+skip + users.length,
+totalCount,
+);
+
+// ----------------------------------------
+// Page
+// ----------------------------------------
+
+return ( <div className="mx-auto w-full max-w-4xl px-4 py-8"> <Link
+     href="/"
+     className="mb-4 flex items-center gap-2 rounded-lg bg-white p-3 text-blue-600 underline"
+   > <Home className="h-5 w-5" />
+Home </Link>
+
+  <SearchUsers />
+
+  <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+    <h1 className="font-semibold text-white">
+      Total Users: {totalCount}
+    </h1>
+
+    <span className="text-slate-300">
+      Showing {showingFrom}-{showingTo}
+    </span>
+  </div>
+
+  {totalPages > 1 && (
+    <div className="mt-6 flex flex-wrap justify-center gap-2">
       <Link
-        href="/"
-        className="text-blue underline flex justify-start items-center bg-white p-2"
+        href={createPageUrl(
+          Math.max(1, currentPage - 1),
+        )}
+        className={`rounded-md border px-3 py-1.5 text-sm ${
+          currentPage === 1
+            ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        }`}
       >
-        <Home /> Home
+        Prev
       </Link>
-      <SearchUsers />
 
-      {users.length > 0 ? (
-        <>
-          <div className="mt-6 flex items-center justify-between gap-3 text-sm text-slate-300">
-            <h1 className="font-semibold text-white">
-              Total Users: {totalCount}
-            </h1>
-            <span>
-              Showing {Math.min(offset + 1, totalCount)}-
-              {Math.min(offset + users.length, totalCount)}
-            </span>
-          </div>
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <a
-                href={createPageUrl(Math.max(1, currentPage - 1))}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  currentPage === 1
-                    ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Prev
-              </a>
+      {Array.from(
+        { length: totalPages },
+        (_, index) => index + 1,
+      ).map((page) => (
+        <Link
+          key={page}
+          href={createPageUrl(page)}
+          className={`rounded-md border px-3 py-1.5 text-sm ${
+            page === currentPage
+              ? "border-white bg-red-700 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          }`}
+        >
+          {page}
+        </Link>
+      ))}
 
-              {pageNumbers.map((page) => (
-                <a
-                  key={page}
-                  href={createPageUrl(page)}
-                  className={`rounded-md border px-3 py-1.5 text-sm ${
-                    page === currentPage
-                      ? "border-white bg-red-700 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {page}
-                </a>
-              ))}
-
-              <a
-                href={createPageUrl(Math.min(totalPages, currentPage + 1))}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  currentPage === totalPages
-                    ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Next
-              </a>
-            </div>
-          )}
-          {/* List */}
-          <div className="space-y-3 mt-6">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
-              >
-                <div className="flex justify-between items-center">
-                  <div className="mb-3">
-                    <div className="flex items-center gap-2">
-                      <Image
-                        src={user.imageUrl}
-                        alt="User Image"
-                        width={32}
-                        height={32}
-                        className="rounded-full w-8 h-8 "
-                      />
-                      <p className="text-sm font-medium text-slate-900">
-                        {user.firstName} {user.lastName}
-                      </p>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{user.id}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {user.emailAddresses[0]?.emailAddress}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {user.publicMetadata.phone
-                        ? String(user.publicMetadata.phone)
-                        : ""}
-                    </p>
-                    <CreatedAtUserComp createdAt={user.createdAt} />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Balance:{" "}
-                      {user.publicMetadata?.balance
-                        ? formatCurrency(Number(user.publicMetadata?.balance))
-                        : "balance not found... click view details"}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Tasks Completed:{" "}
-                      {user.publicMetadata?.tasksCompleted
-                        ? (Number(user.publicMetadata?.tasksCompleted))
-                        : "Tasks Completed data not found... click view details"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mb-3 py-2 border-t border-b border-slate-200">
-                  <p className="text-xs text-slate-600">
-                    Role:{" "}
-                    <span className="font-medium bg-black text-white px-2 py-[0.25px] rounded-lg text-xs capitalize">
-                      {user.publicMetadata.role
-                        ? String(user.publicMetadata.role)
-                        : "User"}
-                    </span>
-                  </p>
-                </div>
-                <Link
-                  className="inline-flex mr-2 items-center  justify-center rounded-md border border-indigo-600 bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  href={`/admin/manage_users/${user.id.toString()}`}
-                >
-                  View Details
-                </Link>
-                <DeleteUserBtn userId={user.id} />
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <a
-                href={createPageUrl(Math.max(1, currentPage - 1))}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  currentPage === 1
-                    ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Prev
-              </a>
-
-              {pageNumbers.map((page) => (
-                <a
-                  key={page}
-                  href={createPageUrl(page)}
-                  className={`rounded-md border px-3 py-1.5 text-sm ${
-                    page === currentPage
-                      ? "border-white bg-red-700 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {page}
-                </a>
-              ))}
-
-              <a
-                href={createPageUrl(Math.min(totalPages, currentPage + 1))}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  currentPage === totalPages
-                    ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Next
-              </a>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="text-center text-slate-500 text-sm mt-8">
-          No users found.
-        </p>
-      )}
+      <Link
+        href={createPageUrl(
+          Math.min(
+            totalPages,
+            currentPage + 1,
+          ),
+        )}
+        className={`rounded-md border px-3 py-1.5 text-sm ${
+          currentPage === totalPages
+            ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        }`}
+      >
+        Next
+      </Link>
     </div>
-  );
+  )}
+
+  <div className="mt-6 space-y-3">
+    {users.length === 0 ? (
+      <p className="mt-8 text-center text-sm text-slate-500">
+        {query
+          ? `No users found for "${query}".`
+          : "No users found."}
+      </p>
+    ) : (
+      users.map((user) => {
+        const userId = user._id.toString();
+
+        const displayName =
+          user.firstName || user.lastName
+            ? `${user.firstName ?? ""} ${
+                user.lastName ?? ""
+              }`.trim()
+            : user.username || "Unknown User";
+
+        const imageUrl = user.imageUrl;
+
+        const userRole =
+          user.role ??
+          user.publicMetadata?.role ??
+          "user";
+
+        const balance = Number(
+          user.balance ?? 0,
+        );
+
+        const pending = Number(
+          user.pending ?? 0,
+        );
+
+        const totalEarned = Number(
+          user.totalEarned ?? 0,
+        );
+
+        const tasksCompleted = Number(
+          user.tasksCompleted ?? 0,
+        );
+
+        return (
+          <div
+            key={userId}
+            className="rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300"
+          >
+            <div className="mb-3">
+              <div className="flex items-center gap-2">
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={displayName}
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">
+                    {displayName
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
+                )}
+
+                <p className="text-sm font-medium text-slate-900">
+                  {displayName}
+                </p>
+              </div>
+
+              <p className="mt-1 break-all text-xs text-slate-500">
+                MongoDB ID: {userId}
+              </p>
+
+              {user.clerkId && (
+                <p className="mt-1 break-all text-xs text-slate-500">
+                  Clerk ID: {user.clerkId}
+                </p>
+              )}
+
+              {user.email && (
+                <p className="mt-1 break-all text-xs text-slate-500">
+                  {user.email}
+                </p>
+              )}
+
+              {user.phone && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {user.phone}
+                </p>
+              )}
+
+              {user.createdAt && (
+                <CreatedAtUserComp
+                  createdAt={new Date(
+                    user.createdAt,
+                  ).getTime()}
+                />
+              )}
+
+              <p className="mt-1 text-xs text-slate-500">
+                Balance:{" "}
+                <span className="font-medium text-slate-700">
+                  {formatCurrency(balance)}
+                </span>
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Pending:{" "}
+                <span className="font-medium text-slate-700">
+                  {formatCurrency(pending)}
+                </span>
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Total Earned:{" "}
+                <span className="font-medium text-slate-700">
+                  {formatCurrency(
+                    totalEarned,
+                  )}
+                </span>
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Tasks Completed:{" "}
+                <span className="font-medium text-slate-700">
+                  {tasksCompleted}
+                </span>
+              </p>
+
+              {user.referralId && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Referral ID:{" "}
+                  <span className="font-mono font-medium">
+                    {user.referralId}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div className="mb-3 border-y border-slate-200 py-2">
+              <p className="text-xs text-slate-600">
+                Role:{" "}
+                <span className="rounded-lg bg-black px-2 py-0.5 text-xs font-medium capitalize text-white">
+                  {String(userRole)}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/manage_users/${userId}`}
+                className="inline-flex items-center justify-center rounded-md border border-indigo-600 bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                View Details
+              </Link>
+
+              <DeleteUserBtn userId={userId} />
+            </div>
+          </div>
+        );
+      })
+    )}
+  </div>
+
+  {totalPages > 1 && (
+    <div className="mt-6 flex flex-wrap justify-center gap-2">
+      <Link
+        href={createPageUrl(
+          Math.max(1, currentPage - 1),
+        )}
+        className={`rounded-md border px-3 py-1.5 text-sm ${
+          currentPage === 1
+            ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        }`}
+      >
+        Prev
+      </Link>
+
+      {Array.from(
+        { length: totalPages },
+        (_, index) => index + 1,
+      ).map((page) => (
+        <Link
+          key={page}
+          href={createPageUrl(page)}
+          className={`rounded-md border px-3 py-1.5 text-sm ${
+            page === currentPage
+              ? "border-white bg-red-700 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          }`}
+        >
+          {page}
+        </Link>
+      ))}
+
+      <Link
+        href={createPageUrl(
+          Math.min(
+            totalPages,
+            currentPage + 1,
+          ),
+        )}
+        className={`rounded-md border px-3 py-1.5 text-sm ${
+          currentPage === totalPages
+            ? "pointer-events-none border-slate-700 bg-slate-800 text-slate-500"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        }`}
+      >
+        Next
+      </Link>
+    </div>
+  )}
+</div>
+
+
+);
 }
