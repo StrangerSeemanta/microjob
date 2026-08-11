@@ -9,7 +9,7 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
 import SearchUsers from "./SearchUsers";
-import DeleteUserBtn from "./DeleteUserBtn";
+// import DeleteUserBtn from "./DeleteUserBtn";
 import CreatedAtUserComp from "./CreatedAtUserComp";
 
 import { formatCurrency } from "@/utils/formatCurrency";
@@ -420,7 +420,7 @@ Home </Link>
                 View Details
               </Link>
 
-              <DeleteUserBtn userId={userId} />
+              {/* <DeleteUserBtn userId={userId} /> */}
             </div>
           </div>
         );
