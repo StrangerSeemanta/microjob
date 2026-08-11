@@ -11,8 +11,7 @@ const WithdrawalRequestSchema = new Schema(
 
     clerkId: {
       type: String,
-      required: true,
-      index: true,
+     
     },
 
     amount: {
