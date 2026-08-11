@@ -22,25 +22,22 @@ export default function AuthPage() {
   // Supabase
   // ==================================================
 
-  const [supabaseLoaded, setSupabaseLoaded] =
-    useState(false);
-
-  const [supabaseSignedIn, setSupabaseSignedIn] =
-    useState(false);
+  const [supabaseLoaded, setSupabaseLoaded] = useState(false);
+  const [supabaseSignedIn, setSupabaseSignedIn] = useState(false);
 
   // ==================================================
   // Form
   // ==================================================
 
-  const [mode, setMode] =
-    useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">("login");
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [authLoading, setAuthLoading] =
-    useState(false);
-
+  const [authLoading, setAuthLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   // ==================================================
@@ -216,25 +213,29 @@ export default function AuthPage() {
           throw error;
         }
 
-        // Make sure Supabase actually created a session.
         if (!data.session) {
           throw new Error(
             "Login succeeded, but no Supabase session was created.",
           );
         }
 
-        // ------------------------------------------------
         // Sync Supabase user → MongoDB
-        // ------------------------------------------------
-
         await syncMongoUser();
-
-        // ------------------------------------------------
-        // Dashboard
-        // ------------------------------------------------
 
         window.location.replace("/user/dashboard");
         return;
+      }
+
+      // ------------------------------------------------
+      // SIGNUP VALIDATION
+      // ------------------------------------------------
+
+      if (!firstName.trim()) {
+        throw new Error("Please enter your first name.");
+      }
+
+      if (!lastName.trim()) {
+        throw new Error("Please enter your last name.");
       }
 
       // ------------------------------------------------
@@ -245,6 +246,14 @@ export default function AuthPage() {
         await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
+
+          // Store name inside Supabase user metadata
+          options: {
+            data: {
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+            },
+          },
         });
 
       if (error) {
@@ -270,6 +279,9 @@ export default function AuthPage() {
       setMessage(
         "Account created successfully. Please check your email to confirm your account.",
       );
+
+      // Clear sensitive/form fields
+      setPassword("");
     } catch (error) {
       console.error(
         "Authentication error:",
@@ -315,12 +327,12 @@ export default function AuthPage() {
       }
 
       setMode("login");
+      setFirstName("");
+      setLastName("");
       setEmail("");
       setPassword("");
 
-      setMessage(
-        "Signed out successfully.",
-      );
+      setMessage("Signed out successfully.");
     } catch (error) {
       console.error(
         "Sign out failed:",
@@ -344,6 +356,7 @@ export default function AuthPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-linear-to-br from-slate-950 via-red-950 to-slate-900 px-6 py-12 text-white">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/10 p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
+
         {/* Logo */}
 
         <div className="mb-6 text-center">
@@ -368,6 +381,51 @@ export default function AuthPage() {
           onSubmit={handleSubmit}
           className="space-y-4"
         >
+
+          {/* First Name + Last Name */}
+
+          {mode === "signup" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  First Name
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) =>
+                    setFirstName(e.target.value)
+                  }
+                  required
+                  autoComplete="given-name"
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Last Name
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) =>
+                    setLastName(e.target.value)
+                  }
+                  required
+                  autoComplete="family-name"
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Email */}
+
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-300">
               Email
@@ -385,6 +443,8 @@ export default function AuthPage() {
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
             />
           </div>
+
+          {/* Password */}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -408,6 +468,8 @@ export default function AuthPage() {
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-red-400/60 focus:ring-2 focus:ring-red-500/20"
             />
           </div>
+
+          {/* Submit */}
 
           <button
             type="submit"
