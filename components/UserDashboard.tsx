@@ -85,7 +85,7 @@ function UserDashboard() {
 
         if (!mounted) return;
 
-        setUser(data as UserDataType);
+        setUser(data as UserDataResponse);
       } catch (error) {
         console.error("[UserDashboard] Error loading user:", error);
 
