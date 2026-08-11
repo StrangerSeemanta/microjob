@@ -2,7 +2,6 @@
 "use client";
 
 import { UserDataResponse } from "@/types/UserData";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import DashboardLoader from "./DashboardLoader";
