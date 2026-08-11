@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import Image from "next/image";
@@ -52,7 +53,7 @@ export default function WithdrawRow({
           <div>
             <div className="flex items-center gap-2">
               {user.imageUrl ? (
-                <Image
+                <img
                   src={user.imageUrl}
                   width={40}
                   height={40}
