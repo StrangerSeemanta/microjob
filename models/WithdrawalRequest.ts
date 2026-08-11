@@ -1,17 +1,18 @@
-import { Schema, model, models, InferSchemaType } from "mongoose";
+import {
+  Schema,
+  model,
+  models,
+  InferSchemaType,
+} from "mongoose";
 
 const WithdrawalRequestSchema = new Schema(
   {
+    // MongoDB User reference
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
-    },
-
-    clerkId: {
-      type: String,
-     
     },
 
     amount: {
@@ -23,16 +24,19 @@ const WithdrawalRequestSchema = new Schema(
     paymentMethod: {
       type: String,
       required: true,
+      trim: true,
     },
 
     accountNumber: {
       type: String,
       required: true,
+      trim: true,
     },
 
     accountName: {
       type: String,
       default: "",
+      trim: true,
     },
 
     status: {
@@ -70,19 +74,24 @@ const WithdrawalRequestSchema = new Schema(
     timestamps: true,
   },
 );
+
+// User withdrawal history
 WithdrawalRequestSchema.index({
-  clerkId: 1,
+  userId: 1,
   createdAt: -1,
 });
 
+// Admin withdrawal queue
 WithdrawalRequestSchema.index({
   status: 1,
   createdAt: -1,
 });
 
-export type WithdrawalRequestSchemaType = InferSchemaType<
-  typeof WithdrawalRequestSchema
->;
+export type WithdrawalRequestSchemaType =
+  InferSchemaType<typeof WithdrawalRequestSchema>;
 
 export default models.WithdrawalRequest ||
-  model("WithdrawalRequest", WithdrawalRequestSchema);
+  model(
+    "WithdrawalRequest",
+    WithdrawalRequestSchema,
+  );

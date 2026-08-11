@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
-
 import { connectDB } from "@/lib/mongodb";
-
+import User from "@/models/User";
 import WithdrawalRequest from "@/models/WithdrawalRequest";
+import mongoose from "mongoose";
 
 export async function POST(req: NextRequest) {
+  const session = await mongoose.startSession();
+
   try {
     await connectDB();
 
@@ -14,14 +16,11 @@ export async function POST(req: NextRequest) {
     // 1. Authenticate
     //
     // Supports:
-    // - Supabase users
-    // - Existing Clerk users
+    // - Supabase
+    // - Clerk
     // ----------------------------------------
 
-    const {
-      authenticated,
-      user,
-    } = await getAuthenticatedUser();
+    const { authenticated, user } = await getAuthenticatedUser();
 
     if (!authenticated) {
       return NextResponse.json(
@@ -48,18 +47,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ----------------------------------------
-    // 3. Get withdrawal data
+    // 3. Read request body
     // ----------------------------------------
 
-    const {
-      amount,
-      paymentMethod,
-      accountNumber,
-      accountName,
-    } = await req.json();
+    const body = await req.json();
+
+    const { amount, paymentMethod, accountNumber, accountName } = body;
 
     // ----------------------------------------
-    // 4. Basic validation
+    // 4. Validate required fields
     // ----------------------------------------
 
     if (
@@ -77,31 +73,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const withdrawalAmount =
-      Number(amount);
+    // ----------------------------------------
+    // 5. Validate amount
+    // ----------------------------------------
 
-    if (
-      !Number.isFinite(withdrawalAmount) ||
-      withdrawalAmount <= 0
-    ) {
+    const withdrawalAmount = Number(amount);
+
+    if (!Number.isFinite(withdrawalAmount) || withdrawalAmount <= 0) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Invalid withdrawal amount.",
+          message: "Invalid withdrawal amount.",
         },
         { status: 400 },
       );
     }
 
     // ----------------------------------------
-    // 5. Balance check
+    // 6. Start MongoDB transaction
     // ----------------------------------------
 
-    if (
-      Number(user.balance || 0) <
-      withdrawalAmount
-    ) {
+    session.startTransaction();
+
+    // ----------------------------------------
+    // 7. Atomically deduct balance
+    //
+    // This prevents two simultaneous requests
+    // from withdrawing the same balance.
+    // ----------------------------------------
+
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+
+        // Important:
+        // Only update if enough balance exists.
+        balance: {
+          $gte: withdrawalAmount,
+        },
+      },
+      {
+        $inc: {
+          balance: -withdrawalAmount,
+          pending: withdrawalAmount,
+        },
+      },
+      {
+        new: true,
+        session,
+      },
+    );
+
+    if (!updatedUser) {
+      await session.abortTransaction();
+
       return NextResponse.json(
         {
           success: false,
@@ -112,97 +137,82 @@ export async function POST(req: NextRequest) {
     }
 
     // ----------------------------------------
-    // 6. Create withdrawal request
+    // 8. Create withdrawal request
     //
     // IMPORTANT:
     //
-    // userId = MongoDB users.data _id
+    // Only MongoDB User._id is stored.
     //
-    // clerkId = kept temporarily for compatibility
-    // with your existing withdrawal/admin system.
+    // No clerkId.
+    // No Supabase ID.
     // ----------------------------------------
 
-    const withdrawal =
-      await WithdrawalRequest.create({
-        userId: user._id,
+    const withdrawal = await WithdrawalRequest.create(
+      [
+        {
+          userId: user._id,
 
-        // Keep the existing Clerk ID on the
-        // withdrawal document so old admin
-        // functionality and historical records
-        // continue working.
-        clerkId: user.clerkId,
+          amount: withdrawalAmount,
 
-        amount: withdrawalAmount,
+          paymentMethod: paymentMethod.toString().trim(),
 
-        paymentMethod,
+          accountNumber: accountNumber.toString().trim(),
 
-        accountNumber,
+          accountName: accountName ? accountName.toString().trim() : "",
 
-        accountName,
-
-        status: "pending",
-      });
-
-    // ----------------------------------------
-    // 7. Deduct balance
-    // ----------------------------------------
-
-    user.balance =
-      Number(user.balance || 0) -
-      withdrawalAmount;
-
-    user.pending =
-      Number(user.pending || 0) +
-      withdrawalAmount;
-
-    user.markModified("balance");
-    user.markModified("pending");
-
-    await user.save();
+          status: "pending",
+        },
+      ],
+      {
+        session,
+      },
+    );
 
     // ----------------------------------------
-    // 8. Return safe response
+    // 9. Commit transaction
+    // ----------------------------------------
+
+    await session.commitTransaction();
+
+    const createdWithdrawal = withdrawal[0];
+
+    // ----------------------------------------
+    // 10. Return frontend-safe data
     // ----------------------------------------
 
     return NextResponse.json({
       success: true,
 
-      message:
-        "Withdrawal request submitted.",
+      message: "Withdrawal request submitted.",
 
       withdrawal: {
-        id: withdrawal._id.toString(),
+        id: createdWithdrawal._id.toString(),
 
-        userId:
-          withdrawal.userId?.toString(),
+        userId: createdWithdrawal.userId.toString(),
 
-        clerkId:
-          withdrawal.clerkId,
+        amount: createdWithdrawal.amount,
 
-        amount:
-          withdrawal.amount,
+        paymentMethod: createdWithdrawal.paymentMethod,
 
-        paymentMethod:
-          withdrawal.paymentMethod,
+        accountNumber: createdWithdrawal.accountNumber,
 
-        accountNumber:
-          withdrawal.accountNumber,
+        accountName: createdWithdrawal.accountName,
 
-        accountName:
-          withdrawal.accountName,
+        status: createdWithdrawal.status,
 
-        status:
-          withdrawal.status,
-
-        createdAt:
-          withdrawal.createdAt,
+        createdAt: createdWithdrawal.createdAt,
       },
     });
   } catch (error) {
-    console.error(
-      "POST /api/withdraw error:",
-      error,
-    );
+    // ----------------------------------------
+    // Rollback transaction
+    // ----------------------------------------
+
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    console.error("POST /api/withdraw error:", error);
 
     return NextResponse.json(
       {
@@ -211,5 +221,7 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 },
     );
+  } finally {
+    await session.endSession();
   }
 }

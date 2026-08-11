@@ -1,128 +1,384 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
 
-import { connectDB } from "@/lib/mongodb";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 import User from "@/models/User";
 import WithdrawalRequest from "@/models/WithdrawalRequest";
 
+const VALID_STATUSES = [
+  "pending",
+  "paid",
+  "rejected",
+] as const;
+
+type WithdrawalStatus =
+  (typeof VALID_STATUSES)[number];
+
+function escapeRegex(value: string) {
+  return value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
+    // =====================================================
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase
+    // - Clerk
+    // =====================================================
 
-    //---------------------------------
-    // Authentication
-    //---------------------------------
+    const {
+      authenticated,
+      user,
+    } = await getAuthenticatedUser();
 
-    const { userId } = await auth();
-
-    if (!userId) {
+    if (!authenticated) {
       return NextResponse.json(
         {
           success: false,
-          message: "Unauthorized",
+          message: "Unauthorized.",
         },
-        { status: 401 },
+        {
+          status: 401,
+        },
       );
     }
 
-    //---------------------------------
-    // Admin Check
-    //---------------------------------
+    // =====================================================
+    // 2. MongoDB user must exist
+    // =====================================================
 
-    const admin = await User.findOne({ clerkId: userId });
-
-    if (!admin || admin.role !== "admin") {
+    if (!user) {
       return NextResponse.json(
         {
           success: false,
-          message: "Forbidden",
+          message: "User not found.",
         },
-        { status: 403 },
+        {
+          status: 404,
+        },
       );
     }
 
-    //---------------------------------
-    // Query Params
-    //---------------------------------
+    // =====================================================
+    // 3. Admin authorization
+    //
+    // IMPORTANT:
+    //
+    // Admin authorization is based on the MongoDB User
+    // document, not on Clerk.
+    // =====================================================
 
-    const searchParams = req.nextUrl.searchParams;
+    const role =
+      typeof user.publicMetadata?.role === "string"
+        ? user.publicMetadata.role
+        : user.role;
 
-    const page = Number(searchParams.get("page")) || 1;
+    if (role !== "admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Forbidden.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
 
-    const limit = Number(searchParams.get("limit")) || 20;
+    // =====================================================
+    // 4. Query parameters
+    // =====================================================
 
-    const status = searchParams.get("status");
+    const searchParams =
+      req.nextUrl.searchParams;
 
-    const search = searchParams.get("search");
+    const rawPage =
+      Number(searchParams.get("page"));
 
-    //---------------------------------
-    // Build Query
-    //---------------------------------
+    const rawLimit =
+      Number(searchParams.get("limit"));
 
-    const query: Record<string, unknown> = {};
+    const page =
+      Number.isFinite(rawPage) &&
+      rawPage > 0
+        ? Math.floor(rawPage)
+        : 1;
+
+    const limit =
+      Number.isFinite(rawLimit) &&
+      rawLimit > 0
+        ? Math.min(
+            Math.floor(rawLimit),
+            100,
+          )
+        : 20;
+
+    const status =
+      searchParams
+        .get("status")
+        ?.trim()
+        .toLowerCase() || "";
+
+    const search =
+      searchParams
+        .get("search")
+        ?.trim() || "";
+
+    // =====================================================
+    // 5. Build withdrawal query
+    //
+    // IMPORTANT:
+    //
+    // WithdrawalRequest.userId
+    //          ↓
+    //       User._id
+    //
+    // There is NO clerkId relationship here.
+    // =====================================================
+
+    const query: Record<
+      string,
+      unknown
+    > = {};
+
+    // =====================================================
+    // 6. Status filter
+    // =====================================================
 
     if (status) {
+      if (
+        !VALID_STATUSES.includes(
+          status as WithdrawalStatus,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Invalid withdrawal status.",
+          },
+          {
+            status: 400,
+          },
+        );
+      }
+
       query.status = status;
     }
 
-    //---------------------------------
-    // Search User
-    //---------------------------------
+    // =====================================================
+    // 7. Search users
+    //
+    // Search is performed against the User collection.
+    // Then the resulting MongoDB _ids are used against
+    // WithdrawalRequest.userId.
+    // =====================================================
 
     if (search) {
+      const safeSearch =
+        escapeRegex(search);
+
       const users = await User.find({
         $or: [
           {
             username: {
-              $regex: search,
+              $regex: safeSearch,
               $options: "i",
             },
           },
           {
             email: {
-              $regex: search,
+              $regex: safeSearch,
               $options: "i",
             },
           },
           {
-            clerkId: {
-              $regex: search,
+            firstName: {
+              $regex: safeSearch,
+              $options: "i",
+            },
+          },
+          {
+            lastName: {
+              $regex: safeSearch,
+              $options: "i",
+            },
+          },
+          {
+            phone: {
+              $regex: safeSearch,
               $options: "i",
             },
           },
         ],
-      }).select("_id clerkId");
+      })
+        .select("_id")
+        .lean();
 
-      const ids = users.map((u) => u.clerkId);
+      // No users matched the search.
+      if (users.length === 0) {
+        return NextResponse.json({
+          success: true,
+          total: 0,
+          page,
+          totalPages: 0,
+          withdrawals: [],
+        });
+      }
 
-      query.clerkId = {
-        $in: ids,
+      const userIds =
+        users.map(
+          (item) => item._id,
+        );
+
+      query.userId = {
+        $in: userIds,
       };
     }
 
-    //---------------------------------
-    // Count
-    //---------------------------------
+    // =====================================================
+    // 8. Count matching withdrawals
+    // =====================================================
 
-    const total = await WithdrawalRequest.countDocuments(query);
+    const total =
+      await WithdrawalRequest.countDocuments(
+        query,
+      );
 
-    //---------------------------------
-    // Fetch
-    //---------------------------------
+    // =====================================================
+    // 9. Fetch withdrawals
+    // =====================================================
 
-    const withdrawals = await WithdrawalRequest.find(query)
-      .populate("userId", "username email firstName lastName imageUrl")
-      .sort({
-        createdAt: -1,
-      })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const withdrawals =
+      await WithdrawalRequest.find(query)
+        .populate({
+          path: "userId",
+          select:
+            "_id username email firstName lastName imageUrl phone role",
+        })
+        .sort({
+          createdAt: -1,
+        })
+        .skip(
+          (page - 1) * limit,
+        )
+        .limit(limit)
+        .lean();
 
-    //---------------------------------
-    // Response
-    //---------------------------------
+    // =====================================================
+    // 10. Serialize MongoDB documents
+    //
+    // NEVER expose ObjectId directly to the frontend.
+    // =====================================================
+
+    const safeWithdrawals =
+      withdrawals.map(
+        (withdrawal) => {
+          const populatedUser =
+            withdrawal.userId as unknown as
+              | {
+                  _id: unknown;
+                  username?: string;
+                  email?: string;
+                  firstName?: string;
+                  lastName?: string;
+                  imageUrl?: string;
+                  phone?: string;
+                  role?: string;
+                }
+              | null;
+
+          const withdrawalUserId =
+            populatedUser?._id
+              ? populatedUser._id.toString()
+              : withdrawal.userId
+                ? withdrawal.userId.toString()
+                : null;
+
+          return {
+            // Withdrawal MongoDB ID
+            id: withdrawal._id.toString(),
+
+            // MongoDB User._id as string
+            userId: withdrawalUserId,
+
+            user: populatedUser
+              ? {
+                  id:
+                    populatedUser._id
+                      ? populatedUser._id.toString()
+                      : null,
+
+                  username:
+                    populatedUser.username,
+
+                  email:
+                    populatedUser.email,
+
+                  firstName:
+                    populatedUser.firstName,
+
+                  lastName:
+                    populatedUser.lastName,
+
+                  imageUrl:
+                    populatedUser.imageUrl,
+
+                  phone:
+                    populatedUser.phone,
+
+                  role:
+                    populatedUser.role,
+                }
+              : null,
+
+            amount:
+              withdrawal.amount,
+
+            paymentMethod:
+              withdrawal.paymentMethod,
+
+            accountNumber:
+              withdrawal.accountNumber,
+
+            accountName:
+              withdrawal.accountName,
+
+            status:
+              withdrawal.status,
+
+            note:
+              withdrawal.note,
+
+            rejectionReason:
+              withdrawal.rejectionReason,
+
+            transactionId:
+              withdrawal.transactionId,
+
+            reviewedBy:
+              withdrawal.reviewedBy,
+
+            reviewedAt:
+              withdrawal.reviewedAt,
+
+            createdAt:
+              withdrawal.createdAt,
+
+            updatedAt:
+              withdrawal.updatedAt,
+          };
+        },
+      );
+
+    // =====================================================
+    // 11. Response
+    // =====================================================
 
     return NextResponse.json({
       success: true,
@@ -131,19 +387,29 @@ export async function GET(req: NextRequest) {
 
       page,
 
-      totalPages: Math.ceil(total / limit),
+      totalPages:
+        Math.ceil(
+          total / limit,
+        ),
 
-      withdrawals,
+      withdrawals:
+        safeWithdrawals,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "GET /api/admin/withdrawals error:",
+      error,
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error",
+        message:
+          "Internal Server Error.",
       },
-      { status: 500 },
+      {
+        status: 500,
+      },
     );
   }
 }

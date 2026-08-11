@@ -5,13 +5,15 @@ import { currentUser } from "@clerk/nextjs/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
+type AuthProvider = "supabase" | "clerk";
+
 export async function getAuthenticatedUser() {
   try {
-    const cookieStore = await cookies();
+    // =====================================================
+    // 1. Create Supabase server client
+    // =====================================================
 
-    // =====================================================
-    // 1. Try Supabase first
-    // =====================================================
+    const cookieStore = await cookies();
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,23 +39,25 @@ export async function getAuthenticatedUser() {
       },
     );
 
+    // =====================================================
+    // 2. Try Supabase authentication
+    // =====================================================
+
     const {
       data: { user: supabaseUser },
     } = await supabase.auth.getUser();
 
-    let email =
-      supabaseUser?.email?.trim().toLowerCase() ?? null;
+    let email: string | null =
+      supabaseUser?.email
+        ?.trim()
+        .toLowerCase() ?? null;
 
-    let provider:
-      | "supabase"
-      | "clerk"
-      | null = supabaseUser
-      ? "supabase"
-      : null;
+    let provider: AuthProvider | null =
+      supabaseUser ? "supabase" : null;
 
     // =====================================================
-    // 2. If Supabase isn't authenticated,
-    //    try existing Clerk session
+    // 3. If Supabase isn't authenticated,
+    //    try Clerk
     // =====================================================
 
     if (!email) {
@@ -72,7 +76,7 @@ export async function getAuthenticatedUser() {
     }
 
     // =====================================================
-    // 3. No authenticated user
+    // 4. No authenticated provider
     // =====================================================
 
     if (!email || !provider) {
@@ -85,14 +89,22 @@ export async function getAuthenticatedUser() {
     }
 
     // =====================================================
-    // 4. Find MongoDB user by email
+    // 5. Connect MongoDB
     // =====================================================
 
     await connectDB();
 
+    // =====================================================
+    // 6. Find canonical MongoDB User
+    // =====================================================
+
     const user = await User.findOne({
-      email: email,
+      email,
     });
+
+    // =====================================================
+    // 7. Authenticated but MongoDB user missing
+    // =====================================================
 
     if (!user) {
       return {
@@ -104,7 +116,7 @@ export async function getAuthenticatedUser() {
     }
 
     // =====================================================
-    // 5. Return unified authenticated user
+    // 8. Return unified identity
     // =====================================================
 
     return {
@@ -127,4 +139,3 @@ export async function getAuthenticatedUser() {
     };
   }
 }
-

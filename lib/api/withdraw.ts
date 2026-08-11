@@ -5,27 +5,124 @@ export interface CreateWithdrawRequest {
   accountName?: string;
 }
 
-export async function requestWithdraw(data: CreateWithdrawRequest) {
+export type WithdrawalStatus =
+  | "pending"
+  | "paid"
+  | "rejected";
+
+export interface Withdrawal {
+  id: string;
+  userId: string;
+
+  amount: number;
+
+  paymentMethod: string;
+  accountNumber: string;
+  accountName?: string;
+
+  status: WithdrawalStatus;
+
+  note?: string;
+  rejectionReason?: string;
+  transactionId?: string;
+
+  reviewedBy?: string;
+  reviewedAt?: string | null;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WithdrawalUser {
+  id: string;
+  username?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  imageUrl?: string;
+  phone?: string;
+  role?: string;
+}
+
+export interface AdminWithdrawal
+  extends Withdrawal {
+  user: WithdrawalUser | null;
+}
+
+export interface WithdrawalResponse {
+  success: boolean;
+  message: string;
+  withdrawal?: Withdrawal;
+}
+
+export interface MyWithdrawalsResponse {
+  success: boolean;
+  message?: string;
+  withdrawals: Withdrawal[];
+}
+
+export interface AdminWithdrawalsResponse {
+  success: boolean;
+  message?: string;
+
+  total: number;
+  page: number;
+  totalPages: number;
+
+  withdrawals: AdminWithdrawal[];
+}
+
+// ----------------------------------------
+// User
+// Request withdrawal
+// ----------------------------------------
+
+export async function requestWithdraw(
+  data: CreateWithdrawRequest,
+): Promise<WithdrawalResponse> {
   const res = await fetch("/api/withdraw", {
     method: "POST",
+
     headers: {
       "Content-Type": "application/json",
     },
+
+    credentials: "include",
+
     body: JSON.stringify(data),
   });
 
-  return await res.json();
+  return (await res.json()) as WithdrawalResponse;
 }
 
-export async function getMyWithdrawals() {
-  const res = await fetch("/api/user/withdrawals", {
-    cache: "no-store",
-  });
+// ----------------------------------------
+// User
+// Get own withdrawal history
+// ----------------------------------------
 
-  return await res.json();
+export async function getMyWithdrawals(): Promise<MyWithdrawalsResponse> {
+  const res = await fetch(
+    "/api/user/withdrawals",
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    },
+  );
+
+  return (await res.json()) as MyWithdrawalsResponse;
 }
 
-export async function getAdminWithdrawals(page = 1, status = "", search = "") {
+// ----------------------------------------
+// Admin
+// Get withdrawal requests
+// ----------------------------------------
+
+export async function getAdminWithdrawals(
+  page = 1,
+  status = "",
+  search = "",
+): Promise<AdminWithdrawalsResponse> {
   const params = new URLSearchParams();
 
   params.set("page", page.toString());
@@ -38,10 +135,22 @@ export async function getAdminWithdrawals(page = 1, status = "", search = "") {
     params.set("search", search);
   }
 
-  const res = await fetch(`/api/admin/withdrawals?${params}`);
+  const res = await fetch(
+    `/api/admin/withdrawals?${params.toString()}`,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    },
+  );
 
-  return await res.json();
+  return (await res.json()) as AdminWithdrawalsResponse;
 }
+
+// ----------------------------------------
+// Admin
+// Update withdrawal
+// ----------------------------------------
 
 export async function updateWithdrawal(
   id: string,
@@ -50,17 +159,31 @@ export async function updateWithdrawal(
     transactionId?: string;
     rejectionReason?: string;
   },
-) {
-  const res = await fetch(`/api/admin/withdrawals/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      action,
-      ...data,
-    }),
-  });
+): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  const res = await fetch(
+    `/api/admin/withdrawals/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
 
-  return await res.json();
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      credentials: "include",
+
+      body: JSON.stringify({
+        action,
+        ...data,
+      }),
+    },
+  );
+
+  return (await res.json()) as {
+    success: boolean;
+    message: string;
+  };
 }
+

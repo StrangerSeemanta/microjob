@@ -9,6 +9,10 @@ interface Props {
 }
 
 export default function WithdrawTable({ withdraw }: Props) {
+  // ================================================
+  // LOADING
+  // ================================================
+
   if (withdraw.loading) {
     return (
       <div className="rounded-xl border bg-white p-12 text-center">
@@ -16,6 +20,10 @@ export default function WithdrawTable({ withdraw }: Props) {
       </div>
     );
   }
+
+  // ================================================
+  // EMPTY
+  // ================================================
 
   if (withdraw.withdrawals.length === 0) {
     return (
@@ -28,6 +36,10 @@ export default function WithdrawTable({ withdraw }: Props) {
       </div>
     );
   }
+
+  // ================================================
+  // TABLE
+  // ================================================
 
   return (
     <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -66,9 +78,9 @@ export default function WithdrawTable({ withdraw }: Props) {
           </thead>
 
           <tbody>
-            {withdraw.withdrawals.map((item, idx) => (
+            {withdraw.withdrawals.map((item) => (
               <WithdrawRow
-                key={`${String(item.clerkId)}_${idx}`}
+                key={item.id}
                 withdrawal={item}
                 withdraw={withdraw}
               />

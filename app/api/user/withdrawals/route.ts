@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
-
 import WithdrawalRequest from "@/models/WithdrawalRequest";
 
 export async function GET() {
@@ -11,7 +10,9 @@ export async function GET() {
     //
     // Supports:
     // - Supabase users
-    // - Existing Clerk users
+    // - Clerk users
+    //
+    // Authentication is provider-independent.
     // ----------------------------------------
 
     const {
@@ -48,24 +49,21 @@ export async function GET() {
     }
 
     // ----------------------------------------
-    // 3. Existing withdrawal records still use
-    //    clerkId.
+    // 3. Find withdrawals by MongoDB User._id
     //
     // IMPORTANT:
     //
-    // We are intentionally keeping this for
-    // emergency compatibility.
+    // WithdrawalRequest.userId
+    //          ↓
+    //       User._id
     //
-    // The authenticated user is resolved by
-    // email first.
-    //
-    // Then their existing clerkId is used only
-    // to locate historical withdrawal records.
+    // No clerkId lookup.
+    // No provider-specific logic.
     // ----------------------------------------
 
     const withdrawals =
       await WithdrawalRequest.find({
-        clerkId: user.clerkId,
+        userId: user._id,
       })
         .sort({
           createdAt: -1,
@@ -73,12 +71,65 @@ export async function GET() {
         .lean();
 
     // ----------------------------------------
-    // 4. Return withdrawal history
+    // 4. Serialize MongoDB ObjectIds
+    //
+    // ObjectIds must become strings before
+    // they are consumed by the frontend.
+    // ----------------------------------------
+
+    const safeWithdrawals =
+      withdrawals.map((withdrawal) => ({
+        id: withdrawal._id.toString(),
+
+        userId:
+          withdrawal.userId.toString(),
+
+        amount:
+          withdrawal.amount,
+
+        paymentMethod:
+          withdrawal.paymentMethod,
+
+        accountNumber:
+          withdrawal.accountNumber,
+
+        accountName:
+          withdrawal.accountName,
+
+        status:
+          withdrawal.status,
+
+        note:
+          withdrawal.note,
+
+        rejectionReason:
+          withdrawal.rejectionReason,
+
+        transactionId:
+          withdrawal.transactionId,
+
+        reviewedBy:
+          withdrawal.reviewedBy,
+
+        reviewedAt:
+          withdrawal.reviewedAt
+            ? withdrawal.reviewedAt.toISOString()
+            : null,
+
+        createdAt:
+          withdrawal.createdAt.toISOString(),
+
+        updatedAt:
+          withdrawal.updatedAt.toISOString(),
+      }));
+
+    // ----------------------------------------
+    // 5. Return withdrawal history
     // ----------------------------------------
 
     return NextResponse.json({
       success: true,
-      withdrawals,
+      withdrawals: safeWithdrawals,
     });
   } catch (error) {
     console.error(

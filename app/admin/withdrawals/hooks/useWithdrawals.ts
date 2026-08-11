@@ -2,16 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getAdminWithdrawals, updateWithdrawal } from "@/lib/api/withdraw";
-import { WithdrawalRequestSchemaType } from "@/models/WithdrawalRequest";
-export type Withdrawal = WithdrawalRequestSchemaType;
+import {
+  getAdminWithdrawals,
+  updateWithdrawal,
+  type AdminWithdrawal,
+} from "@/lib/api/withdraw";
+
+export type Withdrawal = AdminWithdrawal;
 
 export function useWithdrawals() {
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [withdrawals, setWithdrawals] =
+    useState<Withdrawal[]>([]);
+
   const [selectedWithdrawal, setSelectedWithdrawal] =
     useState<Withdrawal | null>(null);
 
-  const [modal, setModal] = useState<null | "paid" | "rejected">(null);
+  const [modal, setModal] =
+    useState<null | "paid" | "rejected">(null);
+
   const [loading, setLoading] = useState(true);
 
   const [page, setPage] = useState(1);
@@ -22,106 +30,166 @@ export function useWithdrawals() {
 
   const [search, setSearch] = useState("");
 
-  //------------------------------------
+  // ================================================
+  // LOAD
+  // ================================================
 
   const load = useCallback(async () => {
     setLoading(true);
 
     try {
-      const res = await getAdminWithdrawals(page, status, search);
+      const res = await getAdminWithdrawals(
+        page,
+        status,
+        search,
+      );
 
-      if (res.success) {
-        setWithdrawals(res.withdrawals);
+      if (!res.success) {
+        console.error(
+          "Failed to load withdrawals:",
+          res.message,
+        );
 
-        setTotalPages(res.totalPages);
+        setWithdrawals([]);
+        setTotalPages(1);
+
+        return;
       }
+
+      setWithdrawals(res.withdrawals);
+
+      setTotalPages(
+        res.totalPages > 0
+          ? res.totalPages
+          : 1,
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load withdrawals:",
+        error,
+      );
+
+      setWithdrawals([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
   }, [page, status, search]);
 
-  //------------------------------------
-
-  const triggerLoad = useCallback(() => {
-    void load();
-  }, [load]);
+  // ================================================
+  // LOAD WHEN FILTER/PAGE CHANGES
+  // ================================================
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(triggerLoad, 0);
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [triggerLoad]);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [load]);
 
-  //------------------------------------
+  // ================================================
+  // APPROVE
+  // ================================================
 
-  async function approve(
-    id: string,
+  const approve = useCallback(
+    async (
+      id: string,
+      transactionId: string,
+    ) => {
+      const result = await updateWithdrawal(
+        id,
+        "paid",
+        {
+          transactionId,
+        },
+      );
 
-    transactionId: string,
-  ) {
-    await updateWithdrawal(
-      id,
+      if (!result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to approve withdrawal.",
+        );
+      }
 
-      "paid",
+      setModal(null);
+      setSelectedWithdrawal(null);
 
-      {
-        transactionId,
-      },
-    );
+      await load();
 
-    load();
-  }
+      return result;
+    },
+    [load],
+  );
 
-  //------------------------------------
+  // ================================================
+  // REJECT
+  // ================================================
 
-  async function reject(
-    id: string,
+  const reject = useCallback(
+    async (
+      id: string,
+      reason: string,
+    ) => {
+      const result = await updateWithdrawal(
+        id,
+        "rejected",
+        {
+          rejectionReason: reason,
+        },
+      );
 
-    reason: string,
-  ) {
-    await updateWithdrawal(
-      id,
+      if (!result.success) {
+        throw new Error(
+          result.message ||
+            "Failed to reject withdrawal.",
+        );
+      }
 
-      "rejected",
+      setModal(null);
+      setSelectedWithdrawal(null);
 
-      {
-        rejectionReason: reason,
-      },
-    );
+      await load();
 
-    load();
-  }
+      return result;
+    },
+    [load],
+  );
 
-  //------------------------------------
+  // ================================================
+  // RETURN
+  // ================================================
 
   return {
     withdrawals,
+
     selectedWithdrawal,
     setSelectedWithdrawal,
 
     modal,
     setModal,
+
     loading,
 
     page,
-
     setPage,
 
     totalPages,
 
     status,
-
     setStatus,
 
     search,
-
     setSearch,
 
     reload: load,
 
     approve,
-
     reject,
   };
 }
-export type UseWithdrawalsReturn = ReturnType<typeof useWithdrawals>;
+
+export type UseWithdrawalsReturn =
+  ReturnType<typeof useWithdrawals>;

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
 import mongoose from "mongoose";
 
 import { connectDB } from "@/lib/mongodb";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
 import User from "@/models/User";
 import WithdrawalRequest from "@/models/WithdrawalRequest";
@@ -16,31 +16,121 @@ export async function PATCH(
   try {
     await connectDB();
 
-    const { userId: adminId } = await auth();
+    // =====================================================
+    // 1. Authenticate
+    //
+    // Supports:
+    // - Supabase
+    // - Clerk
+    // =====================================================
 
-    if (!adminId) {
+    const {
+      authenticated,
+      user: admin,
+    } = await getAuthenticatedUser();
+
+    if (!authenticated) {
       return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 },
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        {
+          status: 401,
+        },
       );
     }
 
-    const admin = await User.findOne({ clerkId: adminId });
+    // =====================================================
+    // 2. MongoDB admin must exist
+    // =====================================================
 
-    if (!admin || admin.role !== "admin") {
+    if (!admin) {
       return NextResponse.json(
-        { success: false, message: "Forbidden" },
-        { status: 403 },
+        {
+          success: false,
+          message: "Admin account not found.",
+        },
+        {
+          status: 404,
+        },
       );
     }
+
+    // =====================================================
+    // 3. Admin authorization
+    // =====================================================
+
+    if (admin.role !== "admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Forbidden.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    // =====================================================
+    // 4. Get withdrawal ID
+    // =====================================================
 
     const { id } = await params;
 
-    const { action, rejectionReason, transactionId } = await req.json();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid withdrawal ID.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    // =====================================================
+    // 5. Read action
+    // =====================================================
+
+    const body = await req.json();
+
+    const {
+      action,
+      rejectionReason,
+      transactionId,
+    } = body;
+
+    if (
+      action !== "paid" &&
+      action !== "rejected"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid action.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    // =====================================================
+    // 6. Start transaction
+    // =====================================================
 
     session.startTransaction();
 
-    const withdrawal = await WithdrawalRequest.findById(id).session(session);
+    // =====================================================
+    // 7. Find withdrawal
+    // =====================================================
+
+    const withdrawal =
+      await WithdrawalRequest.findById(id)
+        .session(session);
 
     if (!withdrawal) {
       await session.abortTransaction();
@@ -50,9 +140,15 @@ export async function PATCH(
           success: false,
           message: "Withdrawal not found.",
         },
-        { status: 404 },
+        {
+          status: 404,
+        },
       );
     }
+
+    // =====================================================
+    // 8. Prevent double processing
+    // =====================================================
 
     if (withdrawal.status !== "pending") {
       await session.abortTransaction();
@@ -60,13 +156,44 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "This request has already been processed.",
+          message:
+            "This withdrawal has already been processed.",
         },
-        { status: 400 },
+        {
+          status: 400,
+        },
       );
     }
 
-    const user = await User.findById(withdrawal.userId).session(session);
+    // =====================================================
+    // 9. Validate userId relation
+    //
+    // WithdrawalRequest.userId is the MongoDB User._id.
+    // No clerkId lookup is performed.
+    // =====================================================
+
+    if (!withdrawal.userId) {
+      await session.abortTransaction();
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Withdrawal is missing its user relation.",
+        },
+        {
+          status: 500,
+        },
+      );
+    }
+
+    // =====================================================
+    // 10. Find withdrawal owner
+    // =====================================================
+
+    const user = await User.findById(
+      withdrawal.userId,
+    ).session(session);
 
     if (!user) {
       await session.abortTransaction();
@@ -74,71 +201,201 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "User not found.",
+          message:
+            "Withdrawal owner was not found.",
         },
-        { status: 404 },
+        {
+          status: 404,
+        },
       );
     }
 
-    //------------------------------------
-    // PAID
-    //------------------------------------
+    const withdrawalAmount = Number(
+      withdrawal.amount,
+    );
+
+    // =====================================================
+    // 11. Store MongoDB admin ID
+    //
+    // reviewedBy is currently a String in the schema,
+    // therefore convert MongoDB _id to string.
+    //
+    // IMPORTANT:
+    // This is NOT Clerk ID and NOT Supabase ID.
+    // =====================================================
+
+    const reviewedBy = admin._id.toString();
+
+    // =====================================================
+    // 12. PAID
+    // =====================================================
 
     if (action === "paid") {
       withdrawal.status = "paid";
-      withdrawal.transactionId = transactionId || "";
-      withdrawal.reviewedBy = adminId;
+
+      withdrawal.transactionId =
+        typeof transactionId === "string"
+          ? transactionId.trim()
+          : "";
+
+      withdrawal.reviewedBy = reviewedBy;
       withdrawal.reviewedAt = new Date();
 
-      user.pending -= withdrawal.amount;
-      user.totalEarned += withdrawal.amount;
+      // Money was already removed from balance
+      // when the withdrawal was created.
+      //
+      // Here we only remove it from pending.
+
+      user.pending =
+        Math.max(
+          0,
+          Number(user.pending || 0) -
+            withdrawalAmount,
+        );
+
+      user.totalEarned =
+        Number(user.totalEarned || 0) +
+        withdrawalAmount;
     }
 
-    //------------------------------------
-    // REJECT
-    //------------------------------------
+    // =====================================================
+    // 13. REJECTED
+    // =====================================================
+
     else if (action === "rejected") {
       withdrawal.status = "rejected";
-      withdrawal.rejectionReason = rejectionReason || "";
-      withdrawal.reviewedBy = adminId;
+
+      withdrawal.rejectionReason =
+        typeof rejectionReason === "string"
+          ? rejectionReason.trim()
+          : "";
+
+      withdrawal.reviewedBy = reviewedBy;
       withdrawal.reviewedAt = new Date();
 
-      user.balance += withdrawal.amount;
-      user.pending -= withdrawal.amount;
-    } else {
-      await session.abortTransaction();
+      // Return the withdrawn amount
+      // back to the user's available balance.
 
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid action.",
-        },
-        { status: 400 },
-      );
+      user.balance =
+        Number(user.balance || 0) +
+        withdrawalAmount;
+
+      user.pending =
+        Math.max(
+          0,
+          Number(user.pending || 0) -
+            withdrawalAmount,
+        );
     }
 
-    await withdrawal.save({ session });
-    await user.save({ session });
+    // =====================================================
+    // 14. Save both documents atomically
+    // =====================================================
+
+    await withdrawal.save({
+      session,
+    });
+
+    await user.save({
+      session,
+    });
+
+    // =====================================================
+    // 15. Commit
+    // =====================================================
 
     await session.commitTransaction();
 
+    // =====================================================
+    // 16. Safe frontend response
+    // =====================================================
+
     return NextResponse.json({
       success: true,
-      message: `Withdrawal ${withdrawal.status}.`,
+
+      message:
+        action === "paid"
+          ? "Withdrawal marked as paid."
+          : "Withdrawal rejected.",
+
+      withdrawal: {
+        id: withdrawal._id.toString(),
+
+        userId:
+          withdrawal.userId.toString(),
+
+        amount:
+          withdrawal.amount,
+
+        paymentMethod:
+          withdrawal.paymentMethod,
+
+        accountNumber:
+          withdrawal.accountNumber,
+
+        accountName:
+          withdrawal.accountName,
+
+        status:
+          withdrawal.status,
+
+        transactionId:
+          withdrawal.transactionId,
+
+        rejectionReason:
+          withdrawal.rejectionReason,
+
+        reviewedBy:
+          withdrawal.reviewedBy,
+
+        reviewedAt:
+          withdrawal.reviewedAt,
+
+        createdAt:
+          withdrawal.createdAt,
+
+        updatedAt:
+          withdrawal.updatedAt,
+      },
+
+      user: {
+        id: user._id.toString(),
+
+        balance:
+          user.balance,
+
+        pending:
+          user.pending,
+
+        totalEarned:
+          user.totalEarned,
+      },
     });
   } catch (error) {
-    await session.abortTransaction();
+    // =====================================================
+    // Rollback transaction if anything failed
+    // =====================================================
 
-    console.error(error);
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    console.error(
+      "PATCH /api/admin/withdrawals/[id] error:",
+      error,
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Internal Server Error",
+        message: "Internal Server Error.",
       },
-      { status: 500 },
+      {
+        status: 500,
+      },
     );
   } finally {
-    session.endSession();
+    await session.endSession();
   }
 }
+
