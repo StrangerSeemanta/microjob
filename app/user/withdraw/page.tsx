@@ -2,10 +2,7 @@
 
 import DashboardLoader from "@/components/DashboardLoader";
 import Footer from "@/components/Footer";
-import {
-  getMyWithdrawals,
-  requestWithdraw,
-} from "@/lib/api/withdraw";
+import { getMyWithdrawals, requestWithdraw } from "@/lib/api/withdraw";
 import { UserDataType } from "@/types/UserData";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -20,11 +17,9 @@ type WithdrawLog = {
 };
 
 export default function WithdrawPage() {
-  const [currentUser, setCurrentUser] =
-    useState<UserDataType | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserDataType | null>(null);
 
-  const [loadingUser, setLoadingUser] =
-    useState(true);
+  const [loadingUser, setLoadingUser] = useState(true);
 
   const [logs, setLogs] = useState<WithdrawLog[]>([]);
 
@@ -85,9 +80,7 @@ export default function WithdrawPage() {
   // Submit withdrawal
   // ----------------------------------------
 
-  async function handleWithdraw(
-    e: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleWithdraw(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setMessage("");
@@ -140,9 +133,7 @@ export default function WithdrawPage() {
           User data not available.
         </h1>
 
-        <p className="mt-2 text-gray-500">
-          Please try again later.
-        </p>
+        <p className="mt-2 text-gray-500">Please try again later.</p>
 
         <button
           onClick={() => {
@@ -198,38 +189,26 @@ export default function WithdrawPage() {
 
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-xl border bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">
-              Total Earned
-            </p>
+            <p className="text-sm text-slate-500">Total Earned</p>
 
             <h2 className="mt-2 text-xl font-bold">
-              {formatCurrency(
-                Number(currentUser.totalEarned),
-              )}
+              {formatCurrency(Number(currentUser.totalEarned))}
             </h2>
           </div>
 
           <div className="rounded-xl border bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">
-              Current Balance
-            </p>
+            <p className="text-sm text-slate-500">Current Balance</p>
 
             <h2 className="mt-2 text-xl font-bold">
-              {formatCurrency(
-                Number(currentUser.balance),
-              )}
+              {formatCurrency(Number(currentUser.balance))}
             </h2>
           </div>
 
           <div className="rounded-xl border bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">
-              Pending Amount
-            </p>
+            <p className="text-sm text-slate-500">Pending Amount</p>
 
             <h2 className="mt-2 text-xl font-bold">
-              {formatCurrency(
-                Number(currentUser.pending),
-              )}
+              {formatCurrency(Number(currentUser.pending))}
             </h2>
           </div>
         </div>
@@ -252,9 +231,7 @@ export default function WithdrawPage() {
               min="20"
               type="number"
               value={amount}
-              onChange={(e) =>
-                setAmount(e.target.value)
-              }
+              onChange={(e) => setAmount(e.target.value)}
               placeholder="20"
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             />
@@ -262,38 +239,31 @@ export default function WithdrawPage() {
             <select
               required
               value={paymentMethod}
-              onChange={(e) =>
-                setPaymentMethod(e.target.value)
-              }
+              onChange={(e) => setPaymentMethod(e.target.value)}
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             >
               <option value="Bkash">Bkash</option>
               <option value="Nagad">Nagad</option>
               <option value="Rocket">Rocket</option>
-              <option value="Mobile Recharge">
-                Mobile Recharge
-              </option>
-              <option value="Binance Pay">
-                Binance Pay
-              </option>
+              <option value="Mobile Recharge">Mobile Recharge</option>
+              <option value="Binance Pay">Binance Pay</option>
             </select>
 
             <input
               type="text"
               required
               value={accNo}
-              onChange={(e) =>
-                setAccNo(e.target.value)
-              }
+              onChange={(e) => setAccNo(e.target.value)}
               placeholder="Account Number"
               className="flex-1 rounded-lg border px-4 py-3 outline-none focus:border-indigo-500"
             />
 
             <button
               type="submit"
+              disabled={true}
               className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
             >
-              Request Withdrawal
+              You can withdraw tomorrow
             </button>
           </div>
 
@@ -310,9 +280,7 @@ export default function WithdrawPage() {
 
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">
-              Withdrawal History
-            </h2>
+            <h2 className="text-xl font-bold">Withdrawal History</h2>
 
             <span className="text-sm text-slate-500">
               {logs.length} Request(s)
@@ -328,25 +296,15 @@ export default function WithdrawPage() {
               <table className="w-full">
                 <thead className="bg-slate-100">
                   <tr>
-                    <th className="px-4 py-3 text-left">
-                      Amount
-                    </th>
+                    <th className="px-4 py-3 text-left">Amount</th>
 
-                    <th className="px-4 py-3 text-left">
-                      Method
-                    </th>
+                    <th className="px-4 py-3 text-left">Method</th>
 
-                    <th className="px-4 py-3 text-left">
-                      Account
-                    </th>
+                    <th className="px-4 py-3 text-left">Account</th>
 
-                    <th className="px-4 py-3 text-left">
-                      Date
-                    </th>
+                    <th className="px-4 py-3 text-left">Date</th>
 
-                    <th className="px-4 py-3 text-left">
-                      Status
-                    </th>
+                    <th className="px-4 py-3 text-left">Status</th>
                   </tr>
                 </thead>
 
@@ -360,18 +318,14 @@ export default function WithdrawPage() {
                         {formatCurrency(log.amount)}
                       </td>
 
-                      <td className="px-4 py-4">
-                        {log.paymentMethod}
-                      </td>
+                      <td className="px-4 py-4">{log.paymentMethod}</td>
 
                       <td className="px-4 py-4 font-mono text-sm">
                         {log.accountNumber}
                       </td>
 
                       <td className="px-4 py-4 text-sm text-slate-600">
-                        {new Date(
-                          log.createdAt,
-                        ).toLocaleString()}
+                        {new Date(log.createdAt).toLocaleString()}
                       </td>
 
                       <td className="px-4 py-4">
